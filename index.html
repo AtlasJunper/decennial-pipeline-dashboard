@@ -189,6 +189,7 @@
   .pill{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:5px 11px;border-radius:999px;color:#fff}
   .pill.hy{background:var(--hyper)} .pill.ed{background:var(--edge)} .pill.ne{background:var(--neo)}
   .pill.untag{background:var(--panel2);color:var(--muted);border:1.5px solid var(--line)}
+  .pill.bucket{background:var(--gold);color:#fff}
   .pill.status{background:var(--panel2);color:var(--ink2);border:1.5px solid var(--line2)}
   .metrics{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-top:18px;background:var(--line);border:1.5px solid var(--line);border-radius:12px;overflow:hidden}
   .m{background:var(--panel);padding:13px 15px}
@@ -247,10 +248,10 @@
         <div><h2 id="maptitle">National Footprint</h2></div>
         <div style="display:flex;align-items:center;gap:12px">
         <div class="ctrls" id="ctrls">
-          <button class="chip on" data-f="all">All</button>
-          <button class="chip hy" data-f="Hyperscale"><span class="d" style="background:var(--hyper)"></span>Hyperscale</button>
-          <button class="chip ed" data-f="Edge"><span class="d" style="background:var(--edge)"></span>Edge</button>
-          <button class="chip ne" data-f="NeoCloud"><span class="d" style="background:var(--neo)"></span>NeoCloud</button>
+<button class="chip on" data-f="all">All</button>
+<button class="chip" data-f="Edge (<100MW)">Edge (&lt;100MW)</button>
+<button class="chip" data-f="100-300MW">100-300MW</button>
+<button class="chip" data-f="300MW+">300MW+</button>
         </div>
           <div class="vtoggle"><button class="vt on" data-v="map" onclick="setView('map')">Map</button><button class="vt" data-v="grid" onclick="setView('grid')">Grid</button></div>
         </div>
@@ -297,18 +298,14 @@ const IT_RATE=0.72;
 const MB_TOKEN='pk.eyJ1IjoiYWprYXkiLCJhIjoiY21xMWpiZDRuMDFibzJ6b3FnMnQxZ3h6YiJ9.jUUfKb6P4u8e8OQPlkK96Q';
 let mbMap=null, mbSat=false;
 
-function plat(s){ if(!s.profile) return null; const p=s.profile.toLowerCase();
-  if(p.includes('hyper')) return 'Hyperscale'; if(p.includes('neo')) return 'NeoCloud';
-  if(p.includes('edge')||p.includes('swarm')) return 'Edge'; return null; }
-const PCOL={Hyperscale:'#2E2364',Edge:'#0E7C9B',NeoCloud:'#C8941A'}; const UNTAG='#B6AEC6';
-function pcss(s){const p=plat(s);return p==='Hyperscale'?'hy':p==='Edge'?'ed':p==='NeoCloud'?'ne':'untag';}
-const live=()=>SITES.filter(s=>!s.isDead && (filter==='all'||plat(s)===filter));
+function bucket(s){ return s.capacityBucket || null; }
+const live=()=>SITES.filter(s=>!s.isDead && (filter==='all'||bucket(s)===filter));
 const activeStates=()=>new Set(live().map(s=>s.stateName));
 const inScope=()=>{const L=live();return zoomedState?L.filter(s=>s.stateName===zoomedState):L;};
 // geographic scope ignoring the platform filter — drives chip availability
 const geoSites=()=>{const L=SITES.filter(s=>!s.isDead);return zoomedState?L.filter(s=>s.stateName===zoomedState):L;};
 function updateChips(){
-  const present=new Set(geoSites().map(s=>plat(s)).filter(Boolean));
+  const present=new Set(geoSites().map(s=>bucket(s)).filter(Boolean));
   document.querySelectorAll('.chip[data-f]').forEach(c=>{
     const f=c.dataset.f;
     if(f==='all'){c.classList.remove('disabled');return;}
@@ -431,8 +428,12 @@ function clearMarkers(){ mbMarkers.forEach(m=>m.remove()); mbMarkers=[]; }
 function addMarker(s,onClick,opts){
   opts=opts||{};
   // platform-colored pin + matching label chip, darkened for contrast on the monochrome basemap
-  const MAPCOL={'Hyperscale':'#2E2364','Edge':'#0A607A','NeoCloud':'#9C7208'};
-  const color=MAPCOL[plat(s)]||'#6B6280';
+const MAPCOL={
+  'Edge (<100MW)':'#0A607A',
+  '100-300MW':'#2E2364',
+  '300MW+':'#9C7208'
+};
+const color=MAPCOL[bucket(s)]||'#6B6280';
   // root element: positioned by Mapbox (it sets transform) — keep it style-free
   const root=document.createElement('div');
   root.className='mb-anchor';
@@ -632,7 +633,7 @@ function renderSnap(s){
   el.innerHTML=`
     <div class="sname">${s.name}</div>
     <div class="sloc">${locHtml}</div>
-    <div class="pills"><span class="pill status">${s.status}</span><span class="pill ${pcss(s)}">${p||'Untagged'}</span></div>
+  <div class="pills"><span class="pill status">${s.status}</span>${s.capacityBucket?`<span class="pill bucket">${s.capacityBucket}</span>`:''}</div>
     <div class="metrics">
       <div class="m"><div class="mv gold big">${fmt(s.headlineMW,' MW')}</div><div class="ml">Gross Capacity</div></div>
       <div class="m"><div class="mv teal big">${fmt(it,' MW')}</div><div class="ml">Critical Capacity <span class="est">(est.)</span></div></div>
@@ -681,7 +682,7 @@ function renderGrid(){
       <th rowspan="2">Lead</th>
       <th rowspan="2">Type</th>
       <th rowspan="2">Status</th>
-      <th rowspan="2">Platform</th>
+      <th rowspan="2">Capacity Bucket</th>
       <th rowspan="2">City, State</th>
       <th rowspan="2">County</th>
       <th colspan="5" class="ramphdr">Gross MW Load Ramp</th>
@@ -694,9 +695,9 @@ function renderGrid(){
     <tr class="sub">${YRS.map((y,i)=>`<th class="${i===0?'rl':''}">${y==='2030+'?"'30+":"'"+y.slice(2)}</th>`).join('')}</tr>
   </thead>`;
   const body=rows.map(s=>{
-    const plat=s.profile||'';
-    const pc=plat.startsWith('Hyper')?'hy':plat.startsWith('Edge')?'ed':plat.startsWith('Neo')?'ne':'preq';
-    const platLabel=plat.replace(' (SWARM)','')||'—';
+  const cap=s.capacityBucket||'';
+  const pc=cap==='Edge (<100MW)'?'ed':cap==='100-300MW'?'hy':cap==='300MW+'?'ne':'preq';
+  const platLabel=cap||'—';
     const sc=s.status==='Intake'?'intake':'preq';
     const it=s.totalITMW!=null?s.totalITMW:(s.headlineMW!=null?Math.round(s.headlineMW*IT_RATE*10)/10:null);
     const eng=/engaged/i.test(s.power||s.powerStatus||'');
