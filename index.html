@@ -226,8 +226,27 @@
   .dl.sat{color:var(--ink);background:var(--panel);cursor:pointer}
   .dl.sat:hover{border-color:var(--teal)} .dl.sat .dot{width:7px;height:7px;border-radius:50%;background:var(--teal)}
 
-  .notes{margin-top:18px;font-size:12.5px;line-height:1.55;color:var(--muted);border-top:1.5px solid var(--line);padding-top:14px}
-  .notes b{color:var(--ink2);font-weight:600}
+  .sop-box{margin-top:18px;background:var(--ink);color:#fff;border-radius:12px;padding:14px 16px;
+    cursor:pointer;display:flex;align-items:center;justify-content:space-between;
+    transition:transform var(--t-micro) var(--ease),box-shadow var(--t-micro) var(--ease)}
+  .sop-box:hover{transform:translateY(-1px);box-shadow:0 6px 22px rgba(36,29,90,.22)}
+  .sop-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700}
+  .sop-cta{font-size:12px;font-weight:600;opacity:.8}
+  .sop-modal{position:fixed;inset:0;background:rgba(36,29,90,.42);backdrop-filter:blur(2px);
+    display:flex;align-items:center;justify-content:center;z-index:1000;
+    opacity:0;pointer-events:none;transition:opacity var(--t-snap) var(--ease)}
+  .sop-modal.open{opacity:1;pointer-events:auto}
+  .sop-panel{background:var(--panel);border-radius:16px;max-width:560px;width:calc(100% - 48px);
+    max-height:74vh;overflow:auto;padding:26px 28px;position:relative;
+    box-shadow:0 24px 64px rgba(20,14,55,.4);
+    transform:translateY(8px) scale(.985);transition:transform var(--t-snap) var(--ease-out)}
+  .sop-modal.open .sop-panel{transform:none}
+  .sop-close{position:absolute;top:14px;right:16px;border:0;background:none;font-size:26px;
+    line-height:1;color:var(--muted);cursor:pointer}
+  .sop-close:hover{color:var(--ink)}
+  .sop-title{font-size:15px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);
+    font-weight:700;margin-bottom:14px;padding-right:24px}
+  .sop-body{font-size:14px;line-height:1.62;color:var(--ink2);white-space:pre-wrap}
   .foot{margin-top:20px;text-align:center;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);font-weight:600}
 </style>
 
@@ -278,6 +297,14 @@
   </div>
 
   <div class="foot">Decennial Development</div>
+
+  <div class="sop-modal" id="sopModal" onclick="if(event.target===this)closeSOP()">
+    <div class="sop-panel">
+      <button class="sop-close" onclick="closeSOP()">&times;</button>
+      <h3 class="sop-title">State of Play</h3>
+      <div class="sop-body" id="sopBody"></div>
+    </div>
+  </div>
 </div>
 
 <script>// https://github.com/topojson/topojson-client v3.1.0 Copyright 2019 Mike Bostock
@@ -594,6 +621,7 @@ function pick(name){
 
 function renderSnap(s){
   const el=document.getElementById('detail');
+  _sopText=s.notes||'';
   const it=s.totalITMW!=null?s.totalITMW:(s.headlineMW!=null?Math.round(s.headlineMW*IT_RATE*10)/10:null);
   // structured location block: address (optional) -> City, State -> raw coordinates (display only)
   const coords=(s.lat!=null&&s.lng!=null)?`${(+s.lat).toFixed(4)}, ${(+s.lng).toFixed(4)}`:null;
@@ -655,9 +683,13 @@ function renderSnap(s){
       <h3>Source Documents</h3>
       <div class="dlrow">${chips.join('')}</div>
     </div>`:''}
-    ${s.notes?`<div class="notes"><b>Notes</b> &nbsp;${s.notes}</div>`:''}`;
+    ${s.notes?`<div class="sop-box" onclick="openSOP()"><div class="sop-label">State of Play</div><div class="sop-cta">Click to read &rsaquo;</div></div>`:''}`;
 }
 
+let _sopText='';
+function openSOP(){ document.getElementById('sopBody').textContent=_sopText; document.getElementById('sopModal').classList.add('open'); }
+function closeSOP(){ document.getElementById('sopModal').classList.remove('open'); }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeSOP(); });
 let viewMode='map';
 function setView(v){
   viewMode=v;
@@ -800,7 +832,7 @@ function mapRecord(rec) {
       '2030+': f['MW Gross 2030+'] ?? null,
     },
     links: { maps: coords.lat != null ? `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}` : null },
-    notes: stripMd(f['Overview']) || null,
+    notes: stripMd(f['State of Play']) || null,
     power: val(f['Power Status']),
     utility: f['Utility'] || null,
     countyFips: null,
