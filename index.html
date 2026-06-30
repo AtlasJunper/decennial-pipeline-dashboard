@@ -860,15 +860,34 @@ async function fetchAllRecords() {
 }
 
 async function initDashboard() {
+  let records;
   try {
-    const records = await fetchAllRecords();
-    const mapped = records.map(mapRecord).filter(s => s.lat != null && s.lng != null && s.name);
-    SITES.push(...mapped);
+    records = await fetchAllRecords();
   } catch (err) {
-    console.error('Airtable load failed, dashboard will show empty pipeline:', err);
+    console.error('Airtable load failed:', err);
+    showLoadError();
+    return; // don't paint a clean-looking empty dashboard over a failed load
   }
+  // keep every named site; coordless sites still count in KPIs + Grid.
+  // map paths (markers, choropleth, county) already guard on s.lat!=null,
+  // so a missing coordinate hides the PIN, never the deal.
+  const mapped = records.map(mapRecord).filter(s => s.name);
+  SITES.length = 0;
+  SITES.push(...mapped);
   drawUS();
 }
 
+function showLoadError() {
+  document.getElementById('kpis').style.display = 'none';
+  const wrap = document.querySelector('.mapwrap');
+  wrap.innerHTML = `<div style="position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;text-align:center;padding:30px">
+    <div style="font-weight:700;font-size:16px;color:var(--ink)">Couldn’t load the pipeline</div>
+    <div style="font-size:13px;color:var(--muted);max-width:400px;line-height:1.5">
+      The live data feed didn’t respond. Showing nothing rather than risk showing the wrong numbers.</div>
+    <button onclick="location.reload()" style="font-family:var(--font);font-size:12.5px;font-weight:600;
+      color:#fff;background:var(--ink);border:0;border-radius:8px;padding:9px 18px;cursor:pointer">Retry</button>
+  </div>`;
+}
 initDashboard();
 </script>
