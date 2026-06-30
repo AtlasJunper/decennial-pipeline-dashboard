@@ -738,10 +738,7 @@ document.querySelectorAll('.chip[data-f]').forEach(c=>c.onclick=()=>{
   else redraw();
 });
 // ── Airtable live data ───────────────────────────────────────────────────────
-const AT_BASE = 'appTbWXUlGX6MiE0G';
-const AT_TABLE = 'tbliGq05bxXvTkzAo';
-const AT_TOKEN = 'pat0SSXV5XhIihZ3O'; // paste your Personal Access Token between these quotes
-
+  
 const STATE_NAME_MAP = {"AL":"Alabama","AK":"Alaska","AZ":"Arizona","AR":"Arkansas","CA":"California","CO":"Colorado","CT":"Connecticut","DE":"Delaware","DC":"District of Columbia","FL":"Florida","GA":"Georgia","HI":"Hawaii","ID":"Idaho","IL":"Illinois","IN":"Indiana","IA":"Iowa","KS":"Kansas","KY":"Kentucky","LA":"Louisiana","ME":"Maine","MD":"Maryland","MA":"Massachusetts","MI":"Michigan","MN":"Minnesota","MS":"Mississippi","MO":"Missouri","MT":"Montana","NE":"Nebraska","NV":"Nevada","NH":"New Hampshire","NJ":"New Jersey","NM":"New Mexico","NY":"New York","NC":"North Carolina","ND":"North Dakota","OH":"Ohio","OK":"Oklahoma","OR":"Oregon","PA":"Pennsylvania","RI":"Rhode Island","SC":"South Carolina","SD":"South Dakota","TN":"Tennessee","TX":"Texas","UT":"Utah","VT":"Vermont","VA":"Virginia","WA":"Washington","WV":"West Virginia","WI":"Wisconsin","WY":"Wyoming"};
 
 function val(v){ // unwrap singleSelect {name} objects, pass through plain strings/numbers
@@ -811,18 +808,14 @@ function mapRecord(rec) {
 }
 
 async function fetchAllRecords() {
-  let records = [], offset = null;
-  do {
-    const url = new URL(`https://api.airtable.com/v0/${AT_BASE}/${AT_TABLE}`);
-    url.searchParams.set('pageSize', '100');
-    if (offset) url.searchParams.set('offset', offset);
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${AT_TOKEN}` } });
-    if (!res.ok) throw new Error(`Airtable fetch failed: ${res.status}`);
-    const data = await res.json();
-    records = records.concat(data.records);
-    offset = data.offset || null;
-  } while (offset);
-  return records;
+  const res = await fetch('/api/sites');
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Sites API failed: ${res.status} ${text}`);
+  }
+
+  return await res.json();
 }
 
 async function initDashboard() {
