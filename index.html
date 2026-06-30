@@ -226,12 +226,11 @@
   .dl.sat{color:var(--ink);background:var(--panel);cursor:pointer}
   .dl.sat:hover{border-color:var(--teal)} .dl.sat .dot{width:7px;height:7px;border-radius:50%;background:var(--teal)}
 
-  .sop-box{margin-top:18px;background:var(--ink);color:#fff;border-radius:12px;padding:14px 16px;
-    cursor:pointer;display:flex;align-items:center;justify-content:space-between;
-    transition:transform var(--t-micro) var(--ease),box-shadow var(--t-micro) var(--ease)}
-  .sop-box:hover{transform:translateY(-1px);box-shadow:0 6px 22px rgba(36,29,90,.22)}
-  .sop-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700}
-  .sop-cta{font-size:12px;font-weight:600;opacity:.8}
+  .m.sop-cell{background:var(--ink);cursor:pointer;
+    transition:filter var(--t-micro) var(--ease)}
+  .m.sop-cell:hover{filter:brightness(1.12)}
+  .m.sop-cell .mv{color:#fff}
+  .m.sop-cell .ml{color:rgba(255,255,255,.65)}
   .sop-modal{position:fixed;inset:0;background:rgba(36,29,90,.42);backdrop-filter:blur(2px);
     display:flex;align-items:center;justify-content:center;z-index:1000;
     opacity:0;pointer-events:none;transition:opacity var(--t-snap) var(--ease)}
@@ -647,8 +646,8 @@ function renderSnap(s){
   }).join('');
   const L=s.links||{};
   const chips=[];
-  if(L.cda&&L.cda.url) chips.push(`<a class="dl sat" href="${L.cda.url}" target="_blank" rel="noopener">${L.cda.label||'CDA'}</a>`);
-  if(L.pg&&L.pg.url) chips.push(`<a class="dl sat" href="${L.pg.url}" target="_blank" rel="noopener">PG ${L.pg.label||''}</a>`);
+  if(L.cda&&L.cda.url) chips.push(`<a class="dl sat" href="${L.cda.url}" target="_blank" rel="noopener">CDA Memo</a>`);
+  if(L.pg&&L.pg.url) chips.push(`<a class="dl sat" href="${L.pg.url}" target="_blank" rel="noopener">PG Analysis</a>`);
   if(L.box) chips.push(`<a class="dl sat" href="${L.box}" target="_blank" rel="noopener">Box Folder</a>`);
   // location lines: City,State is map-linked if available; coords are plain display-only text
   const locHtml=locLines.map(line=>{
@@ -669,6 +668,7 @@ function renderSnap(s){
       <div class="m"><div class="mv sm">${s.lead||'\u2014'}</div><div class="ml">Project Lead</div></div>
       <div class="m"><div class="mv sm">${s.source||'\u2014'}</div><div class="ml">Project Source</div></div>
       <div class="m"><div class="mv sm">${s.zoning||'\u2014'}</div><div class="ml">Zoning</div></div>
+      ${s.notes?`<div class="m sop-cell" onclick="openSOP()"><div class="mv sm">Click to read &rsaquo;</div><div class="ml">State of Play</div></div>`:''}
     </div>
     <div class="ramp">
       <h3>Power Capacity Build-Out</h3>
@@ -682,8 +682,7 @@ function renderSnap(s){
     ${chips.length?`<div class="docs">
       <h3>Source Documents</h3>
       <div class="dlrow">${chips.join('')}</div>
-    </div>`:''}
-    ${s.notes?`<div class="sop-box" onclick="openSOP()"><div class="sop-label">State of Play</div><div class="sop-cta">Click to read &rsaquo;</div></div>`:''}`;
+    </div>`:''}`;
 }
 
 let _sopText='';
@@ -773,6 +772,11 @@ document.querySelectorAll('.chip[data-f]').forEach(c=>c.onclick=()=>{
   
 const STATE_NAME_MAP = {"AL":"Alabama","AK":"Alaska","AZ":"Arizona","AR":"Arkansas","CA":"California","CO":"Colorado","CT":"Connecticut","DE":"Delaware","DC":"District of Columbia","FL":"Florida","GA":"Georgia","HI":"Hawaii","ID":"Idaho","IL":"Illinois","IN":"Indiana","IA":"Iowa","KS":"Kansas","KY":"Kentucky","LA":"Louisiana","ME":"Maine","MD":"Maryland","MA":"Massachusetts","MI":"Michigan","MN":"Minnesota","MS":"Mississippi","MO":"Missouri","MT":"Montana","NE":"Nebraska","NV":"Nevada","NH":"New Hampshire","NJ":"New Jersey","NM":"New Mexico","NY":"New York","NC":"North Carolina","ND":"North Dakota","OH":"Ohio","OK":"Oklahoma","OR":"Oregon","PA":"Pennsylvania","RI":"Rhode Island","SC":"South Carolina","SD":"South Dakota","TN":"Tennessee","TX":"Texas","UT":"Utah","VT":"Vermont","VA":"Virginia","WA":"Washington","WV":"West Virginia","WI":"Wisconsin","WY":"Wyoming"};
 
+function extractMdLink(s){ // pulls {label,url} from a "[Label](https://...)" markdown link; null if absent
+  if(!s) return null;
+  const m=String(s).match(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/);
+  return m?{label:m[1],url:m[2]}:null;
+}
 function val(v){ // unwrap singleSelect {name} objects, pass through plain strings/numbers
   if (v == null) return null;
   if (typeof v === 'object' && !Array.isArray(v)) return v.name ?? null;
@@ -831,7 +835,12 @@ function mapRecord(rec) {
       '2029': f['MW Gross 2029'] ?? null,
       '2030+': f['MW Gross 2030+'] ?? null,
     },
-    links: { maps: coords.lat != null ? `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}` : null },
+    links: {
+      maps: coords.lat != null ? `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}` : null,
+      box: f['Box Link'] || null,
+      cda: extractMdLink(f['Commercial Development Analysis']),
+      pg: extractMdLink(f['PG Analysis']),
+    },
     notes: stripMd(f['State of Play']) || null,
     power: val(f['Power Status']),
     utility: f['Utility'] || null,
