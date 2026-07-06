@@ -76,6 +76,11 @@
   .gvtable thead th{position:sticky;top:0;background:var(--panel2);text-align:left;padding:9px 9px;font-weight:700;color:var(--ink2);white-space:nowrap;border-bottom:1.5px solid var(--line2);font-size:11px;letter-spacing:.02em}
   .gvtable thead th.num{text-align:right}
   .gvtable thead th.ramphdr{text-align:center;color:var(--muted);font-size:10px;letter-spacing:.07em;text-transform:uppercase;border-left:1.5px solid var(--line);font-weight:700}
+  .gvtable thead th.sortable{cursor:pointer;user-select:none;transition:color .12s ease}
+  .gvtable thead th.sortable:hover{color:var(--ink)}
+  .gv-clear{font-size:12px;font-weight:700;color:var(--ink);cursor:pointer;text-decoration:none;
+    background:var(--panel2);border:1.5px solid var(--line2);border-radius:999px;padding:3px 10px;margin-right:2px}
+  .gv-clear:hover{border-color:var(--dim)}
   .gvtable thead tr.sub th{position:sticky;top:29px;font-size:10.5px;font-weight:600;color:var(--dim);padding:4px 9px 9px;text-align:right;background:var(--panel2)}
   .gvtable thead tr.sub th.rl{border-left:1.5px solid var(--line)}
   .gvtable td{padding:9px 9px;white-space:nowrap;border-bottom:1px solid var(--line);color:var(--muted)}
@@ -114,29 +119,40 @@
 
   .grid > .card:first-child{display:flex;flex-direction:column}
   .mapwrap{position:relative;flex:1 1 auto;min-height:clamp(540px,64vh,720px);overflow:hidden}
-  #mbmap{position:absolute;inset:0;display:none;border-radius:0 0 14px 14px;opacity:0;transition:opacity var(--t-view) var(--ease)}
-  #mbmap.show{opacity:1}
-  #map{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:1;transition:opacity var(--t-view) var(--ease)}
-  #map.fade{opacity:0}
+  #mbmap{position:absolute;inset:0;display:none;border-radius:0 0 14px 14px;opacity:0;transform:scale(1.025);
+    transition:opacity var(--t-view) var(--ease), transform var(--t-view) var(--ease)}
+  #mbmap.show{opacity:1;transform:scale(1)}
+  #map{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:1;transform:scale(1);
+    transition:opacity var(--t-view) var(--ease), transform var(--t-view) var(--ease)}
+  #map.fade{opacity:0;transform:scale(.975)}
   /* marker root — positioned by Mapbox, NEVER style transform here */
   .mb-anchor{cursor:pointer;opacity:1;transition:opacity var(--t-micro) var(--ease)}
   .mb-anchor.fading{opacity:0}
   .mb-marker{position:relative;width:19px;height:19px;border-radius:50%;
     border:3px solid #fff;
-    box-shadow:0 0 0 1.5px rgba(36,29,90,.55), 0 3px 8px rgba(20,14,55,.5);
+    /* layered shadow for actual depth: tight rim + soft cast shadow below+behind */
+    box-shadow:0 0 0 1.5px rgba(36,29,90,.55), 0 1px 2px rgba(20,14,55,.35), 0 5px 10px -1px rgba(20,14,55,.45);
     animation:mkdrop .45s cubic-bezier(.2,.9,.3,1.25) backwards;
     transition:transform .15s ease, box-shadow .15s ease}
-  .mb-anchor:hover .mb-marker{transform:scale(1.18);
-    box-shadow:0 0 0 1.5px rgba(36,29,90,.7), 0 5px 12px rgba(20,14,55,.55)}
+  .mb-marker::before{content:"";position:absolute;top:2px;left:3px;width:38%;height:38%;
+    border-radius:50%;background:rgba(255,255,255,.6);filter:blur(.5px);pointer-events:none}
+  .mb-anchor:hover .mb-marker{transform:scale(1.2);
+    box-shadow:0 0 0 1.5px rgba(36,29,90,.72), 0 2px 3px rgba(20,14,55,.4), 0 8px 16px -2px rgba(20,14,55,.55)}
   @keyframes mkdrop{from{opacity:0;transform:translateY(-14px) scale(.6)}to{opacity:1;transform:translateY(0) scale(1)}}
   .mb-marker.pulse:after{content:"";position:absolute;left:50%;top:50%;width:100%;height:100%;
     border-radius:50%;border:2.5px solid currentColor;transform:translate(-50%,-50%);
     animation:mpulse 1.9s ease-out infinite;pointer-events:none}
   @keyframes mpulse{0%{opacity:.85;width:100%;height:100%}100%{opacity:0;width:340%;height:340%}}
-  .mb-mlabel{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);
+  /* hidden until hover (or while a marker is pulsing/selected) — keeps a
+     multi-site state view uncluttered, but the info is one hover away */
+  .mb-mlabel{position:absolute;left:50%;bottom:26px;transform:translateX(-50%) translateY(3px);
     white-space:nowrap;font-family:var(--font);font-weight:700;font-size:12px;color:#fff;
     pointer-events:none;background:var(--ink);border:1px solid rgba(255,255,255,.35);
-    border-radius:7px;padding:3.5px 9px;box-shadow:0 2.5px 8px rgba(20,14,55,.4);letter-spacing:.015em}
+    border-radius:7px;padding:3.5px 9px;box-shadow:0 2.5px 8px rgba(20,14,55,.4);letter-spacing:.015em;
+    opacity:0;transition:opacity .14s ease, transform .14s ease}
+  .mb-mlabel .mw{font-weight:600;color:rgba(255,255,255,.75);margin-left:6px}
+  .mb-anchor:hover .mb-mlabel{opacity:1;transform:translateX(-50%) translateY(0)}
+  .mb-marker.pulse + .mb-mlabel{opacity:1;transform:translateX(-50%) translateY(0)}
   /* national choropleth interactivity */
   .state{transition:filter .16s ease, transform .18s ease;transform-box:fill-box;transform-origin:center}
   .state.active{cursor:pointer}
@@ -194,7 +210,6 @@
   .pill{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:5px 11px;border-radius:999px;color:#fff}
   .pill.hy{background:var(--hyper)} .pill.ed{background:var(--edge)} .pill.ne{background:var(--neo)}
   .pill.untag{background:var(--panel2);color:var(--muted);border:1.5px solid var(--line)}
-  .pill.bucket{background:var(--gold);color:#fff}
   .pill.status{background:var(--panel2);color:var(--ink2);border:1.5px solid var(--line2)}
   .metrics{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-top:18px;background:var(--line);border:1.5px solid var(--line);border-radius:12px;overflow:hidden}
   .m{background:var(--panel);padding:13px 15px}
@@ -266,6 +281,44 @@
   .sop-body li.sop-check.done{color:var(--dim);text-decoration:line-through}
   .foot{margin-top:20px;text-align:center;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);font-weight:600}
 
+  /* ── dark mode ── */
+  html{transition:background var(--t-view) var(--ease)}
+  html[data-theme="dark"]{
+    --ink:#F2EEFB; --ink2:#CBC1E6; --violet:#A78EE0; --gold:#E3B94E; --teal:#4FC7E6;
+    --paper:#120F20; --panel:#1C1832; --panel2:#231E3C;
+    --line:#332C50; --line2:#463C68; --muted:#9488AC; --dim:#6B6390;
+    --hyper:#7561D6; --edge:#3FBBDE; --neo:#E3B94E; --untag:#4C4568;
+    --land:#231E3C; --landline:#3A335C; --stateline:#4A4270; --ramp0:#3A2E63; --ramp1:#9179E6;
+  }
+  html[data-theme="dark"] body{
+    background:radial-gradient(1100px 520px at 84% -14%, #241f3d 0%, transparent 58%),
+      radial-gradient(820px 480px at -6% 110%, #1c1832 0%, transparent 55%), var(--paper);
+  }
+  html[data-theme="dark"] .brand img{background:#fff;border-radius:9px;padding:4px}
+  html[data-theme="dark"] .hint,html[data-theme="dark"] .legend,html[data-theme="dark"] .sat-toggle{
+    background:rgba(28,24,50,.9);color:var(--ink2);border-color:var(--line2)}
+  html[data-theme="dark"] .sat-toggle{color:var(--ink)}
+  html[data-theme="dark"] .sat-toggle:hover{background:rgba(35,30,60,.95)}
+  html[data-theme="dark"] .mb-mlabel{border-color:rgba(255,255,255,.18)}
+  html[data-theme="dark"] .county{fill:#231e3c}
+  html[data-theme="dark"] .county.focus{fill:#3a2e63}
+  html[data-theme="dark"] .slabel,html[data-theme="dark"] .clabel{stroke:var(--paper)}
+  html[data-theme="dark"] .mlabel{stroke:var(--paper)}
+  .theme-toggle{border:1.5px solid var(--line2);background:var(--panel);color:var(--ink);
+    border-radius:999px;width:34px;height:34px;cursor:pointer;font-size:15px;
+    display:inline-flex;align-items:center;justify-content:center;transition:.15s;flex:none}
+  .theme-toggle:hover{background:var(--panel2);border-color:var(--dim)}
+
+  /* ── presentation mode: full-bleed map, chrome stripped for screen-share ── */
+  body.presenting{padding:14px 16px 16px}
+  body.presenting .kpis,body.presenting .foot,body.presenting .brand .sub,
+  body.presenting .tag,body.presenting .asof{display:none!important}
+  body.presenting .grid{grid-template-columns:1fr!important}
+  body.presenting .snap,body.presenting .gridview{display:none!important}
+  body.presenting .mapwrap{min-height:calc(100vh - 132px)}
+  body.presenting header{margin-bottom:12px;padding-bottom:12px}
+  body.presenting .hd{padding:12px 16px}
+
   /* ── additions: attention strip + freshness ── */
   .a-tile:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--violet)}
   .a-tile.gate:before{background:#B23B3B}.a-tile.cap:before{background:var(--gold)}.a-tile.gap:before{background:var(--dim)}
@@ -293,6 +346,8 @@
     </div>
     <div style="display:flex;align-items:center;gap:14px">
       <div class="asof" id="asof"></div>
+      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle dark mode">🌙</button>
+      <button class="theme-toggle" id="presentToggle" onclick="togglePresent()" title="Presentation mode">⛶</button>
       <div class="tag">Live Pipeline</div>
     </div>
   </header>
@@ -352,16 +407,44 @@ const CONFIG = {
   MB_SAT:   'mapbox://styles/mapbox/satellite-streets-v12',
   US_TOPO:  'https://cdn.jsdelivr.net/npm/us-atlas@3/states-albers-10m.json',
 };
-// One definition drives the filter chips, marker colors, and grid pills.
+// Single source of truth for bucket color: read straight from the CSS custom
+// properties (--edge/--hyper/--neo) so the filter chip, the map pin, and the
+// snapshot pill can never drift out of sync with each other again.
+const rootCSS = getComputedStyle(document.documentElement);
+const cssColor = name => rootCSS.getPropertyValue(name).trim();
 const BUCKETS = [
-  { id:'Edge (<100MW)', chip:'Edge (&lt;100MW)', color:'#0A607A', cls:'ed'  },
-  { id:'100-300MW',     chip:'100-300MW',        color:'#2E2364', cls:'hy'  },
-  { id:'300MW+',        chip:'300MW+',           color:'#9C7208', cls:'ne'  },
+  { id:'Edge (<100MW)', chip:'Edge (&lt;100MW)', get color(){ return cssColor('--edge'); },  cls:'ed' },
+  { id:'100-300MW',     chip:'100-300MW',        get color(){ return cssColor('--hyper'); }, cls:'hy' },
+  { id:'300MW+',        chip:'300MW+',           get color(){ return cssColor('--neo'); },   cls:'ne' },
 ];
 const bucketMeta = id => BUCKETS.find(b => b.id === id) || { color:'#6B6280', cls:'preq' };
 
+/* ── THEME ──────────────────────────────────────────────────────────────── */
+function applyTheme(t){
+  document.documentElement.dataset.theme = t;
+  document.getElementById('themeToggle').textContent = t === 'dark' ? '☀️' : '🌙';
+  try { localStorage.setItem('decennial-theme', t); } catch(e){ /* private browsing: preference just won't persist */ }
+}
+function toggleTheme(){ applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); }
+(function initTheme(){
+  let t = 'light';
+  try { t = localStorage.getItem('decennial-theme') || 'light'; } catch(e){}
+  applyTheme(t);
+})();
+
+/* ── PRESENTATION MODE ──────────────────────────────────────────────────── */
+// Strips KPIs, footer, and the Grid/Snapshot panels for a full-bleed map —
+// meant for screen-sharing on a call. Esc exits it (see keyboard nav below).
+function togglePresent(){
+  const on = document.body.classList.toggle('presenting');
+  document.getElementById('presentToggle').textContent = on ? '✕' : '⛶';
+  document.getElementById('presentToggle').title = on ? 'Exit presentation mode' : 'Presentation mode';
+  if (mbMap) setTimeout(() => mbMap.resize(), 360);
+}
+
 /* ── STATE ──────────────────────────────────────────────────────────────── */
-const S = { filter:'all', level:'us', zoomedState:null, selectedId:null, view:'map', sat:false };
+const S = { filter:'all', level:'us', zoomedState:null, selectedId:null, view:'map', sat:false,
+  sort:{ key:'gross', dir:'desc' } };
 let SITES = [], US = null, fetchedAt = null;
 let mbMap = null, mbMarkers = [];
 
@@ -391,7 +474,7 @@ const geoSites = () => S.zoomedState ? SITES.filter(s => s.stateName === S.zoome
 function buildChips(){
   const el = document.getElementById('ctrls');
   el.innerHTML = `<button class="chip on" data-f="all">All</button>` +
-    BUCKETS.map(b => `<button class="chip" data-f="${esc(b.id)}">${b.chip}</button>`).join('');
+    BUCKETS.map(b => `<button class="chip ${b.cls}" data-f="${esc(b.id)}">${b.chip}</button>`).join('');
   el.querySelectorAll('.chip').forEach(c => c.onclick = () => onFilter(c));
 }
 function onFilter(c){
@@ -526,7 +609,8 @@ function addMarker(s, onClick, opts = {}){
   const label = document.createElement('div');
   label.className = 'mb-mlabel';
   label.style.background = color;
-  label.textContent = s.name.replace(/\s*\(.*\)/, '');
+  const mwTxt = s.headlineMW != null ? `<span class="mw">${fmtN(s.headlineMW)} MW</span>` : '';
+  label.innerHTML = `${esc(s.name.replace(/\s*\(.*\)/, ''))}${mwTxt}`;
   root.appendChild(dot); root.appendChild(label);
   if (onClick) root.addEventListener('click', e => { e.stopPropagation(); onClick(s); });
   mbMarkers.push(new mapboxgl.Marker({ element:root, anchor:'center' }).setLngLat([s.lng, s.lat]).addTo(mbMap));
@@ -707,6 +791,7 @@ function renderSnap(s){
   const el = document.getElementById('detail');
   _sopMd = s.notesMd || '';
   const it = itMW(s);
+  const bm = bucketMeta(bucket(s));
   const coords = hasCoords(s) ? `${(+s.lat).toFixed(4)}, ${(+s.lng).toFixed(4)}` : null;
   const mapsUrl = hasCoords(s) ? `https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}` : null;
   const locLines = [s.address, s.cityState, coords].filter(Boolean);
@@ -741,7 +826,7 @@ function renderSnap(s){
   el.innerHTML = `
     <div class="sname">${esc(s.name)}</div>
     <div class="sloc">${locHtml}</div>
-    <div class="pills"><span class="pill status">${esc(s.status)}</span>${s.capacityBucket ? `<span class="pill bucket">${esc(s.capacityBucket)}</span>` : ''}</div>
+    <div class="pills"><span class="pill status">${esc(s.status)}</span>${s.capacityBucket ? `<span class="pill ${bm.cls}">${esc(s.capacityBucket)}</span>` : ''}</div>
     <div class="metrics">
       <div class="m"><div class="mv gold big">${fmt(s.headlineMW,' MW')}</div><div class="ml">Gross Capacity</div></div>
       <div class="m"><div class="mv teal big">${fmt(it,' MW')}</div><div class="ml">Critical Capacity <span class="est">(est.)</span></div></div>
@@ -766,7 +851,29 @@ function renderSnap(s){
 }
 function openSOP(){ document.getElementById('sopBody').innerHTML = mdToHtml(_sopMd); document.getElementById('sopModal').classList.add('open'); }
 function closeSOP(){ document.getElementById('sopModal').classList.remove('open'); }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSOP(); });
+
+/* ── KEYBOARD NAV ───────────────────────────────────────────────────────── */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape'){
+    if (document.getElementById('sopModal').classList.contains('open')){ closeSOP(); return; }
+    if (document.body.classList.contains('presenting')){ togglePresent(); return; }
+    if (S.level === 'county'){ closeSnap(); drillState(S.zoomedState); return; }
+    if (S.level === 'state'){ drawUS(); return; }
+    return;
+  }
+  // Arrow keys step through the sites currently on screen (respects filter + scope).
+  // Disabled at national level (nothing mapped to step through) and while the
+  // State of Play modal has focus (its own scroll takes the arrow keys).
+  if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && S.level !== 'us'
+      && !document.getElementById('sopModal').classList.contains('open')){
+    const list = inScope().filter(hasCoords);
+    if (!list.length) return;
+    e.preventDefault();
+    let idx = list.findIndex(x => x.id === S.selectedId);
+    idx = idx === -1 ? 0 : (idx + (e.key === 'ArrowRight' ? 1 : -1) + list.length) % list.length;
+    pick(list[idx].id);
+  }
+});
 
 /* ── GRID VIEW ──────────────────────────────────────────────────────────── */
 function setView(v){
@@ -776,21 +883,64 @@ function setView(v){
   if (v === 'grid'){ renderGrid(); grid.classList.add('show-grid'); }
   else grid.classList.remove('show-grid');
 }
+// Text columns default to A→Z on first click; numeric columns default to
+// highest-first — matches what someone reaching for that column expects.
+const SORT_TEXT_KEYS = new Set(['name','lead','typ','status','bucket','cityState','county','power','utility']);
+function sortVal(s, key){
+  switch(key){
+    case 'name': return s.name || null;       case 'lead': return s.lead || null;
+    case 'typ': return s.typ || null;         case 'status': return s.status || null;
+    case 'bucket': return s.capacityBucket || null; case 'cityState': return s.cityState || null;
+    case 'county': return s.county || null;   case 'gross': return s.headlineMW;
+    case 'critical': return itMW(s);          case 'acres': return s.acres;
+    case 'power': return s.power || null;     case 'utility': return s.utility || null;
+    default: return null;
+  }
+}
+function sortRows(rows){
+  const { key, dir } = S.sort;
+  const mult = dir === 'asc' ? 1 : -1;
+  return rows.slice().sort((a,b) => {
+    const av = sortVal(a,key), bv = sortVal(b,key);
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;   // nulls always sort last, regardless of direction
+    if (bv == null) return -1;
+    const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv));
+    return cmp * mult;
+  });
+}
+function sortIcon(key){ return S.sort.key === key ? (S.sort.dir === 'asc' ? ' \u25B2' : ' \u25BC') : ''; }
+function onSortClick(key){
+  if (S.sort.key === key) S.sort.dir = S.sort.dir === 'asc' ? 'desc' : 'asc';
+  else { S.sort.key = key; S.sort.dir = SORT_TEXT_KEYS.has(key) ? 'asc' : 'desc'; }
+  renderGrid();
+}
+function clearScope(){
+  S.zoomedState = null; S.selectedId = null; S.level = 'us';
+  closeSnap();
+  if (S.view === 'grid') renderGrid(); else drawUS();
+}
 function renderGrid(){
-  const rows = live().slice().sort((a,b) => (b.headlineMW||0) - (a.headlineMW||0));
+  // inScope(), not live() — Grid now reflects whatever state you drilled into
+  // on the map, same as the map does. Filter-chip scope already carried over;
+  // this closes the geo-scope half of the gap.
+  const rows = sortRows(inScope());
   const totG = rows.reduce((s,x) => s + num(x.headlineMW), 0);
   const totC = rows.reduce((s,x) => s + num(itMW(x)), 0);
-  document.getElementById('gvstats').textContent = `${rows.length} sites \u00B7 ${fmtN(Math.round(totG))} MW gross \u00B7 ${fmtN(Math.round(totC))} MW critical`;
+  const scopeTag = S.zoomedState
+    ? `<a class="gv-clear" onclick="clearScope()" title="Back to national">${esc(S.zoomedState)} \u2715</a> \u00B7 ` : '';
+  document.getElementById('gvstats').innerHTML = `${scopeTag}${rows.length} sites \u00B7 ${fmtN(Math.round(totG))} MW gross \u00B7 ${fmtN(Math.round(totC))} MW critical`;
   const dot = '<span class="dot">\u00B7</span>';
   const cell = v => v == null ? dot : fmtN(v);
+  const sh = (key,label,extra='') => `<th rowspan="2" class="sortable${extra?' '+extra:''}" data-key="${key}">${label}${sortIcon(key)}</th>`;
   const head = `<thead>
     <tr>
-      <th rowspan="2" class="proj">Project</th><th rowspan="2">Lead</th><th rowspan="2">Type</th>
-      <th rowspan="2">Status</th><th rowspan="2">Capacity Bucket</th><th rowspan="2">City, State</th>
-      <th rowspan="2">County</th><th colspan="5" class="ramphdr">Gross MW Load Ramp</th>
-      <th rowspan="2" class="num" style="border-left:1.5px solid var(--line2)">Gross MW</th>
-      <th rowspan="2" class="num">Critical MW</th><th rowspan="2" class="num">Acres</th>
-      <th rowspan="2">Power Status</th><th rowspan="2">Utility</th>
+      ${sh('name','Project','proj')}${sh('lead','Lead')}${sh('typ','Type')}
+      ${sh('status','Status')}${sh('bucket','Capacity Bucket')}${sh('cityState','City, State')}
+      ${sh('county','County')}<th colspan="5" class="ramphdr">Gross MW Load Ramp</th>
+      ${sh('gross','Gross MW','num').replace('<th rowspan', '<th style="border-left:1.5px solid var(--line2)" rowspan')}
+      ${sh('critical','Critical MW','num')}${sh('acres','Acres','num')}
+      ${sh('power','Power Status')}${sh('utility','Utility')}
     </tr>
     <tr class="sub">${CONFIG.YEARS.map((y,i) => `<th class="${i===0?'rl':''}">${y==='2030+'?"'30+":"'"+y.slice(2)}</th>`).join('')}</tr>
   </thead>`;
@@ -814,9 +964,12 @@ function renderGrid(){
   }).join('');
   document.getElementById('gvtable').innerHTML = head + '<tbody>' + body + '</tbody>';
 }
-// One delegated listener replaces per-row inline onclick strings — record ids
-// are inert data attributes, so names with quotes/HTML can't break or inject.
+// One delegated listener covers both sortable header clicks and row-open
+// clicks — record ids are inert data attributes, so names with quotes/HTML
+// can't break or inject.
 document.getElementById('gvtable').addEventListener('click', e => {
+  const th = e.target.closest('th[data-key]');
+  if (th){ onSortClick(th.dataset.key); return; }
   const tr = e.target.closest('tr[data-id]');
   if (tr){ setView('map'); pick(tr.dataset.id); }
 });
