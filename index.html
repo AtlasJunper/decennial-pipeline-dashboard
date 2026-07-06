@@ -267,8 +267,6 @@
   .foot{margin-top:20px;text-align:center;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);font-weight:600}
 
   /* ── additions: attention strip + freshness ── */
-  .attn{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:-6px 0 18px}
-  .a-tile{background:var(--panel);border:1.5px solid var(--line);border-radius:14px;padding:12px 15px;position:relative;overflow:hidden}
   .a-tile:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--violet)}
   .a-tile.gate:before{background:#B23B3B}.a-tile.cap:before{background:var(--gold)}.a-tile.gap:before{background:var(--dim)}
   .a-hd{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:7px;display:flex;align-items:center;gap:8px}
@@ -300,7 +298,6 @@
   </header>
 
   <div class="kpis" id="kpis"></div>
-  <div class="attn" id="attn" style="display:none"></div>
 
   <div class="grid" id="grid">
     <div class="card">
@@ -456,43 +453,6 @@ function kpis(){
       if (p < 1) requestAnimationFrame(tick);
     })(t0);
   });
-}
-
-/* ── ATTENTION STRIP — the executive-signal layer ───────────────────────── */
-// Always pipeline-global (ignores geo/filter scope): risk doesn't care what
-// state you happen to be zoomed into. Tiles render only when they have data.
-function attention(){
-  const el = document.getElementById('attn');
-  const tiles = [];
-  const today = new Date(); today.setHours(0,0,0,0);
-  // 1) Gates inside the window (needs "Next Gate"/"Gate Date" in Airtable)
-  const gated = SITES.filter(s => s.gateDate).map(s => ({ s, d: new Date(s.gateDate) }))
-    .filter(x => !isNaN(x.d)).sort((a,b) => a.d - b.d);
-  const soon = gated.filter(x => (x.d - today)/864e5 <= CONFIG.GATE_SOON_DAYS && (x.d - today)/864e5 >= -7);
-  if (soon.length){
-    const rows = soon.slice(0,3).map(x =>
-      `<div class="a-row"><span class="a-name">${esc(x.s.name)}</span><span class="a-what">${esc(x.s.nextGate||'Gate')}</span><span class="a-when${x.d < today ? ' past':''}">${x.d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span></div>`).join('');
-    tiles.push(`<div class="a-tile gate"><div class="a-hd">Gates &le;${CONFIG.GATE_SOON_DAYS}d <span class="a-n">${soon.length}</span></div>${rows}</div>`);
-  }
-  // 2) Capital exposure (needs "Capital Exposed" in Airtable)
-  const capSites = SITES.filter(s => num(s.capital) > 0);
-  if (capSites.length){
-    const tot = capSites.reduce((a,s) => a + s.capital, 0);
-    const top = capSites.sort((a,b) => b.capital - a.capital)[0];
-    tiles.push(`<div class="a-tile cap"><div class="a-hd">Capital Exposed <span class="a-n">$${fmtN(Math.round(tot/1e5)/10)}M</span></div><div class="a-row"><span class="a-name">${esc(top.name)}</span><span class="a-when">$${fmtN(Math.round(top.capital/1e5)/10)}M</span></div><div class="a-sub">${capSites.length} site${capSites.length>1?'s':''} with $ at risk</div></div>`);
-  }
-  // 3) Data gaps — always available; a deal invisible on the map is a decision risk
-  const noCoord = SITES.filter(s => !hasCoords(s));
-  const badCoord = SITES.filter(s => s.coordsInvalid);
-  const noMW = SITES.filter(s => s.headlineMW == null);
-  if (noCoord.length || noMW.length){
-    const parts = [];
-    if (noCoord.length) parts.push(`<div class="a-row"><span class="a-name">${noCoord.length} unmapped${badCoord.length ? ` (${badCoord.length} bad coords)` : ''}</span><span class="a-what">${esc(noCoord.slice(0,2).map(s=>s.name).join(', '))}${noCoord.length>2?'\u2026':''}</span></div>`);
-    if (noMW.length) parts.push(`<div class="a-row"><span class="a-name">${noMW.length} missing MW</span><span class="a-what">${esc(noMW.slice(0,2).map(s=>s.name).join(', '))}${noMW.length>2?'\u2026':''}</span></div>`);
-    tiles.push(`<div class="a-tile gap"><div class="a-hd">Data Gaps <span class="a-n">${noCoord.length + noMW.length}</span></div>${parts.join('')}</div>`);
-  }
-  el.innerHTML = tiles.join('');
-  el.style.display = tiles.length ? 'grid' : 'none';
 }
 
 /* ── FRESHNESS ──────────────────────────────────────────────────────────── */
@@ -887,13 +847,11 @@ async function boot(force){
   }
   buildChips();
   renderAsOf();
-  attention();
   if (S.view === 'grid') renderGrid();
   drawUS();
 }
 function showLoadError(){
   document.getElementById('kpis').style.display = 'none';
-  document.getElementById('attn').style.display = 'none';
   document.querySelector('.mapwrap').innerHTML = `<div style="position:absolute;inset:0;display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:14px;text-align:center;padding:30px">
     <div style="font-weight:700;font-size:16px;color:var(--ink)">Couldn\u2019t load the pipeline</div>
