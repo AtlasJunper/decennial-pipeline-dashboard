@@ -281,44 +281,6 @@
   .sop-body li.sop-check.done{color:var(--dim);text-decoration:line-through}
   .foot{margin-top:20px;text-align:center;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);font-weight:600}
 
-  /* ── dark mode ── */
-  html{transition:background var(--t-view) var(--ease)}
-  html[data-theme="dark"]{
-    --ink:#F2EEFB; --ink2:#CBC1E6; --violet:#A78EE0; --gold:#E3B94E; --teal:#4FC7E6;
-    --paper:#120F20; --panel:#1C1832; --panel2:#231E3C;
-    --line:#332C50; --line2:#463C68; --muted:#9488AC; --dim:#6B6390;
-    --hyper:#7561D6; --edge:#3FBBDE; --neo:#E3B94E; --untag:#4C4568;
-    --land:#231E3C; --landline:#3A335C; --stateline:#4A4270; --ramp0:#3A2E63; --ramp1:#9179E6;
-  }
-  html[data-theme="dark"] body{
-    background:radial-gradient(1100px 520px at 84% -14%, #241f3d 0%, transparent 58%),
-      radial-gradient(820px 480px at -6% 110%, #1c1832 0%, transparent 55%), var(--paper);
-  }
-  html[data-theme="dark"] .brand img{background:#fff;border-radius:9px;padding:4px}
-  html[data-theme="dark"] .hint,html[data-theme="dark"] .legend,html[data-theme="dark"] .sat-toggle{
-    background:rgba(28,24,50,.9);color:var(--ink2);border-color:var(--line2)}
-  html[data-theme="dark"] .sat-toggle{color:var(--ink)}
-  html[data-theme="dark"] .sat-toggle:hover{background:rgba(35,30,60,.95)}
-  html[data-theme="dark"] .mb-mlabel{border-color:rgba(255,255,255,.18)}
-  html[data-theme="dark"] .county{fill:#231e3c}
-  html[data-theme="dark"] .county.focus{fill:#3a2e63}
-  html[data-theme="dark"] .slabel,html[data-theme="dark"] .clabel{stroke:var(--paper)}
-  html[data-theme="dark"] .mlabel{stroke:var(--paper)}
-  .theme-toggle{border:1.5px solid var(--line2);background:var(--panel);color:var(--ink);
-    border-radius:999px;width:34px;height:34px;cursor:pointer;font-size:15px;
-    display:inline-flex;align-items:center;justify-content:center;transition:.15s;flex:none}
-  .theme-toggle:hover{background:var(--panel2);border-color:var(--dim)}
-
-  /* ── presentation mode: full-bleed map, chrome stripped for screen-share ── */
-  body.presenting{padding:14px 16px 16px}
-  body.presenting .kpis,body.presenting .foot,body.presenting .brand .sub,
-  body.presenting .tag,body.presenting .asof{display:none!important}
-  body.presenting .grid{grid-template-columns:1fr!important}
-  body.presenting .snap,body.presenting .gridview{display:none!important}
-  body.presenting .mapwrap{min-height:calc(100vh - 132px)}
-  body.presenting header{margin-bottom:12px;padding-bottom:12px}
-  body.presenting .hd{padding:12px 16px}
-
   /* ── additions: attention strip + freshness ── */
   .a-tile:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--violet)}
   .a-tile.gate:before{background:#B23B3B}.a-tile.cap:before{background:var(--gold)}.a-tile.gap:before{background:var(--dim)}
@@ -346,8 +308,6 @@
     </div>
     <div style="display:flex;align-items:center;gap:14px">
       <div class="asof" id="asof"></div>
-      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle dark mode">🌙</button>
-      <button class="theme-toggle" id="presentToggle" onclick="togglePresent()" title="Presentation mode">⛶</button>
       <div class="tag">Live Pipeline</div>
     </div>
   </header>
@@ -419,32 +379,16 @@ const BUCKETS = [
 ];
 const bucketMeta = id => BUCKETS.find(b => b.id === id) || { color:'#6B6280', cls:'preq' };
 
-/* ── THEME ──────────────────────────────────────────────────────────────── */
-function applyTheme(t){
-  document.documentElement.dataset.theme = t;
-  document.getElementById('themeToggle').textContent = t === 'dark' ? '☀️' : '🌙';
-  try { localStorage.setItem('decennial-theme', t); } catch(e){ /* private browsing: preference just won't persist */ }
-}
-function toggleTheme(){ applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); }
-(function initTheme(){
-  let t = 'light';
-  try { t = localStorage.getItem('decennial-theme') || 'light'; } catch(e){}
-  applyTheme(t);
-})();
-
-/* ── PRESENTATION MODE ──────────────────────────────────────────────────── */
-// Strips KPIs, footer, and the Grid/Snapshot panels for a full-bleed map —
-// meant for screen-sharing on a call. Esc exits it (see keyboard nav below).
-function togglePresent(){
-  const on = document.body.classList.toggle('presenting');
-  document.getElementById('presentToggle').textContent = on ? '✕' : '⛶';
-  document.getElementById('presentToggle').title = on ? 'Exit presentation mode' : 'Presentation mode';
-  if (mbMap) setTimeout(() => mbMap.resize(), 360);
-}
-
 /* ── STATE ──────────────────────────────────────────────────────────────── */
 const S = { filter:'all', level:'us', zoomedState:null, selectedId:null, view:'map', sat:false,
   sort:{ key:'gross', dir:'desc' } };
+// Fixed once from the FULL pipeline (every site, every bucket) — this is what
+// "darkest possible shade" means, and it never changes when a filter chip is
+// clicked. Previously this was recomputed from the currently-filtered set on
+// every drawUS() call, so a state's color would shift between "All" and
+// "Edge" even though its actual Edge MW never moved — the scale's ceiling
+// was silently changing underneath it. Recomputed only on data refresh.
+let stateMaxMW = 1;
 let SITES = [], US = null, fetchedAt = null;
 let mbMap = null, mbMarkers = [];
 
@@ -580,7 +524,7 @@ function drawUS(){
     .filter(d => d.properties.name !== 'Alaska' && d.properties.name !== 'Hawaii');
   const act = activeStates();
   const byState = {}; live().forEach(s => byState[s.stateName] = (byState[s.stateName]||0) + num(s.headlineMW));
-  const max = Math.max(1, ...Object.values(byState));
+  const max = stateMaxMW; // fixed ceiling — same darkest-shade reference regardless of which filter is active
   svg.append('g').selectAll('path').data(states).join('path').attr('d', path)
     .attr('class', d => 'state' + (act.has(d.properties.name) ? ' active' : ''))
     .style('fill', d => act.has(d.properties.name)
@@ -856,7 +800,6 @@ function closeSOP(){ document.getElementById('sopModal').classList.remove('open'
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape'){
     if (document.getElementById('sopModal').classList.contains('open')){ closeSOP(); return; }
-    if (document.body.classList.contains('presenting')){ togglePresent(); return; }
     if (S.level === 'county'){ closeSnap(); drillState(S.zoomedState); return; }
     if (S.level === 'state'){ drawUS(); return; }
     return;
@@ -992,6 +935,12 @@ async function boot(force){
     ]);
     US = topo;
     SITES = data.sites;
+    // Full-pipeline max, every bucket included — this is the fixed ceiling
+    // the choropleth scale uses; see stateMaxMW declaration for why it must
+    // NOT be recomputed from whatever filter happens to be active.
+    const byStateAll = {};
+    SITES.forEach(s => { if (s.stateName) byStateAll[s.stateName] = (byStateAll[s.stateName] || 0) + num(s.headlineMW); });
+    stateMaxMW = Math.max(1, ...Object.values(byStateAll));
     fetchedAt = new Date(data.fetchedAt || Date.now());
   } catch (err) {
     console.error('Dashboard load failed:', err);
