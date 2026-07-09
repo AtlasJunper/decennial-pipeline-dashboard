@@ -239,6 +239,25 @@
 
   .docs{margin-top:20px;border-top:1.5px solid var(--line);padding-top:15px}
   .docs h3{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:11px}
+
+  /* ── community sentiment block ── */
+  .sent{margin-top:20px}
+  .sent-card{position:relative;padding:13px 15px 13px 19px;border:1.5px solid var(--line);border-radius:12px;overflow:hidden}
+  .sent-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px}
+  .sent-card.danger{background:rgba(178,59,59,.07);border-color:rgba(178,59,59,.28)}
+  .sent-card.danger:before{background:#B23B3B}
+  .sent-card.mixed{background:#FBEFD6;border-color:#EBD9AE}
+  .sent-card.mixed:before{background:var(--gold)}
+  .sent-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+  .sent-label{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+  .sent-card.danger .sent-label{color:#B23B3B}
+  .sent-card.mixed .sent-label{color:#7A5905}
+  .sent-badge{font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:#B23B3B;color:#fff;white-space:nowrap}
+  .sent-card.mixed .sent-badge{background:var(--gold);color:#4A3705}
+  .sent-text{font-size:12.5px;line-height:1.55;color:var(--ink2)}
+  .sent-text a{color:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px}
+  .sent-quiet{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--muted);line-height:1.5}
+  .sent-quiet .dot{width:8px;height:8px;border-radius:50%;flex:none;margin-top:4px}
   .dlrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
   .dl{font-size:11.5px;font-weight:600;padding:8px 12px;border-radius:9px;border:1.5px solid var(--line);display:inline-flex;align-items:center;gap:7px;text-decoration:none}
   .dl.off{color:var(--dim);background:var(--panel2);cursor:not-allowed}
@@ -378,6 +397,18 @@ const BUCKETS = [
   { id:'300MW+',        chip:'300MW+',           get color(){ return cssColor('--neo'); },   cls:'ne' },
 ];
 const bucketMeta = id => BUCKETS.find(b => b.id === id) || { color:'#6B6280', cls:'preq' };
+// Community sentiment: same "meta lookup by id, class drives color" pattern as
+// bucketMeta above, reusing tokens already on the page (danger red from the
+// Attention strip's overdue-gate styling, gold from --gold, dim/green already
+// used elsewhere) rather than inventing a new palette.
+const SENTIMENT = {
+  opposed:    { cls:'danger', dot:'#B23B3B' },
+  restricted: { cls:'danger', dot:'#B23B3B' },
+  mixed:      { cls:'mixed',  dot:'#B8920C' },
+  supportive: { cls:'quiet',  dot:'#0F6E56' },
+  unknown:    { cls:'quiet',  dot:'#A79BBC' },
+};
+const sentimentMeta = status => SENTIMENT[String(status || 'unknown').toLowerCase()] || SENTIMENT.unknown;
 
 /* ── STATE ──────────────────────────────────────────────────────────────── */
 const S = { filter:'all', level:'us', zoomedState:null, selectedId:null, view:'map', sat:false,
@@ -731,6 +762,33 @@ function mdToHtml(md){
   flushPara(); closeLists();
   return out;
 }
+// Sentiment summary text may embed a [cited fact](url) markdown link (same
+// syntax mdInline already handles for State of Play notes). If a site has
+// sources but the summary text doesn't cite one inline, wrap the whole
+// sentence in the primary source link instead of listing URLs separately.
+function sentimentSummaryHtml(s){
+  if (!s.sentimentSummary) return '';
+  let html = mdInline(esc(s.sentimentSummary));
+  if (!/<a /.test(html) && s.sentimentSources && s.sentimentSources.length){
+    html = `<a href="${esc(s.sentimentSources[0].url)}" target="_blank" rel="noopener">${html}</a>`;
+  }
+  return html;
+}
+function sentimentBlockHtml(s){
+  // Status alone is enough to show something — don't require a summary too,
+  // or a record with a status set but no summary yet renders nothing.
+  if (!s.sentimentStatus && !s.sentimentSummary) return '';
+  const meta = sentimentMeta(s.sentimentStatus);
+  const summaryHtml = sentimentSummaryHtml(s) || 'No summary yet.';
+  const badge = s.sentimentChanged ? `<span class="sent-badge">Changed this week</span>` : '';
+  if (meta.cls === 'danger' || meta.cls === 'mixed'){
+    return `<div class="sent"><div class="sent-card ${meta.cls}">
+      <div class="sent-hd"><span class="sent-label">Community Sentiment${s.sentimentStatus ? ' · ' + esc(s.sentimentStatus) : ''}</span>${badge}</div>
+      <div class="sent-text">${summaryHtml}</div>
+    </div></div>`;
+  }
+  return `<div class="sent"><div class="sent-quiet"><span class="dot" style="background:${meta.dot}"></span><span class="sent-text">${summaryHtml}</span></div></div>`;
+}
 function renderSnap(s){
   const el = document.getElementById('detail');
   _sopMd = s.notesMd || '';
@@ -791,6 +849,7 @@ function renderSnap(s){
       <div class="bars">${bars}</div>
       <div class="axis"></div>
     </div>
+    ${sentimentBlockHtml(s)}
     ${chips.length ? `<div class="docs"><h3>Source Documents</h3><div class="dlrow">${chips.join('')}</div></div>` : ''}`;
 }
 function openSOP(){ document.getElementById('sopBody').innerHTML = mdToHtml(_sopMd); document.getElementById('sopModal').classList.add('open'); }

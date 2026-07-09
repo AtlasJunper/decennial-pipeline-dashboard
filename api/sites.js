@@ -33,6 +33,11 @@ const F = {
   gateDate:   "Gate Date",        // date
   capital:    "Capital Exposed",  // currency/number, $ at risk (deposits, collateral)
   lastTouch:  "Last Updated",     // "Last modified time" field type
+  // ── Community sentiment fields ───────────────────────────────────────────
+  sentimentStatus:  "Sentiment Status",   // single select: Opposed/Restricted/Mixed/Supportive/Unknown
+  sentimentSummary: "Sentiment Summary",  // rich text; may embed a [cited fact](url) markdown link
+  sentimentSources: "Sentiment Sources",  // rich text; one or more [label](url) citations
+  sentimentChanged: "Sentiment Changed This Week",  // checkbox: sentiment shifted this week
 };
 
 // NOTE: we intentionally do NOT pass fields[] to Airtable. Airtable 422s on
@@ -58,6 +63,17 @@ function mdLink(s) {
   if (!s) return null;
   const m = String(s).match(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/);
   return m ? { label: m[1], url: m[2] } : null;
+}
+
+// Same [label](url) syntax as mdLink, but collects every citation in a blob
+// (Sentiment Sources can hold more than one link).
+function mdLinks(s) {
+  if (!s) return [];
+  const re = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+  const out = [];
+  let m;
+  while ((m = re.exec(String(s)))) out.push({ label: m[1], url: m[2] });
+  return out;
 }
 
 // "Coordinates" is rich text; extract lat/lng, auto-repair swapped order,
@@ -114,6 +130,11 @@ function normalize(rec) {
     gateDate: f[F.gateDate] || null,
     capital: numOrNull(f[F.capital]),
     lastTouch: f[F.lastTouch] || null,
+    // optional community-sentiment fields (null until the columns exist in Airtable)
+    sentimentStatus: sel(f[F.sentimentStatus]) || null,
+    sentimentSummary: (f[F.sentimentSummary] || "").replace(/\r\n/g, "\n").trim() || null,
+    sentimentSources: mdLinks(f[F.sentimentSources]),
+    sentimentChanged: !!f[F.sentimentChanged],
   };
 }
 
