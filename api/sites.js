@@ -34,10 +34,14 @@ const F = {
   capital:    "Capital Exposed",  // currency/number, $ at risk (deposits, collateral)
   lastTouch:  "Last Updated",     // "Last modified time" field type
   // ── Community sentiment fields ───────────────────────────────────────────
-  sentimentStatus:  "Sentiment Status",   // single select: Opposed/Restricted/Mixed/Supportive/Unknown
-  sentimentSummary: "Sentiment Summary",  // rich text; may embed a [cited fact](url) markdown link
-  sentimentSources: "Sentiment Sources",  // rich text; one or more [label](url) citations
-  sentimentChanged: "Sentiment Changed This Week",  // checkbox: sentiment shifted this week
+  // NOTE: several of these Airtable column names carry a trailing space in the
+  // base itself (confirmed via the table schema) — keep them exact, since
+  // Airtable's REST API keys `fields` by the literal column name.
+  sentimentStatus:      "Sentiment Status",              // single select: Opposed/Restricted/Mixed/Supportive/Unknown (options also have a trailing space)
+  sentimentSummary:     "Sentiment Summary ",             // plain text
+  sentimentSources:     "Sentiment Sources ",             // plain text; one bare URL per line, optionally "url (label)"
+  sentimentChanged:     "Sentiment Changed This Week ",   // checkbox: sentiment shifted this week
+  sentimentLastChecked: "Sentiment Last Checked ",        // date
 };
 
 // NOTE: we intentionally do NOT pass fields[] to Airtable. Airtable 422s on
@@ -65,14 +69,21 @@ function mdLink(s) {
   return m ? { label: m[1], url: m[2] } : null;
 }
 
-// Same [label](url) syntax as mdLink, but collects every citation in a blob
-// (Sentiment Sources can hold more than one link).
-function mdLinks(s) {
+// Sentiment Sources holds one citation per line, either "[label](url)" markdown
+// or (the actual convention in use) a bare URL with an optional trailing
+// "(label)", e.g. "https://example.com/article (Jan 29 2026)".
+function sourceLinks(s) {
   if (!s) return [];
-  const re = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+  const raw = String(s);
   const out = [];
+  const mdRe = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
   let m;
-  while ((m = re.exec(String(s)))) out.push({ label: m[1], url: m[2] });
+  while ((m = mdRe.exec(raw))) out.push({ label: m[1], url: m[2] });
+  // Drop already-captured markdown citations before scanning for bare URLs,
+  // so a URL inside "[label](url)" isn't also picked up by the bare pass.
+  const rest = raw.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '');
+  const bareRe = /(https?:\/\/\S+?)(?:\s*\(([^)]+)\))?(?=\s|$)/g;
+  while ((m = bareRe.exec(rest))) out.push({ label: m[2] || m[1], url: m[1] });
   return out;
 }
 
@@ -131,10 +142,13 @@ function normalize(rec) {
     capital: numOrNull(f[F.capital]),
     lastTouch: f[F.lastTouch] || null,
     // optional community-sentiment fields (null until the columns exist in Airtable)
-    sentimentStatus: sel(f[F.sentimentStatus]) || null,
+    // .trim() on the status: the single-select options themselves carry a
+    // trailing space in Airtable ("Opposed ", "Mixed ", ...).
+    sentimentStatus: (sel(f[F.sentimentStatus]) || "").trim() || null,
     sentimentSummary: (f[F.sentimentSummary] || "").replace(/\r\n/g, "\n").trim() || null,
-    sentimentSources: mdLinks(f[F.sentimentSources]),
+    sentimentSources: sourceLinks(f[F.sentimentSources]),
     sentimentChanged: !!f[F.sentimentChanged],
+    sentimentLastChecked: f[F.sentimentLastChecked] || null,
   };
 }
 

@@ -256,6 +256,8 @@
   .sent-card.mixed .sent-badge{background:var(--gold);color:#4A3705}
   .sent-text{font-size:12.5px;line-height:1.55;color:var(--ink2)}
   .sent-text a{color:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px}
+  .sent-meta{margin-top:8px;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .sent-meta a{color:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px}
   .sent-quiet{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--muted);line-height:1.5}
   .sent-quiet .dot{width:8px;height:8px;border-radius:50%;flex:none;margin-top:4px}
   .dlrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
@@ -408,7 +410,7 @@ const SENTIMENT = {
   supportive: { cls:'quiet',  dot:'#0F6E56' },
   unknown:    { cls:'quiet',  dot:'#A79BBC' },
 };
-const sentimentMeta = status => SENTIMENT[String(status || 'unknown').toLowerCase()] || SENTIMENT.unknown;
+const sentimentMeta = status => SENTIMENT[String(status || 'unknown').trim().toLowerCase()] || SENTIMENT.unknown;
 
 /* ── STATE ──────────────────────────────────────────────────────────────── */
 const S = { filter:'all', level:'us', zoomedState:null, selectedId:null, view:'map', sat:false,
@@ -763,16 +765,12 @@ function mdToHtml(md){
   return out;
 }
 // Sentiment summary text may embed a [cited fact](url) markdown link (same
-// syntax mdInline already handles for State of Play notes). If a site has
-// sources but the summary text doesn't cite one inline, wrap the whole
-// sentence in the primary source link instead of listing URLs separately.
+// syntax mdInline already handles for State of Play notes) — that's the only
+// way a specific phrase gets hyperlinked. Plain prose renders as plain text;
+// we don't auto-wrap the whole paragraph in a link to the first source, since
+// that reads as one giant underlined block rather than an inline citation.
 function sentimentSummaryHtml(s){
-  if (!s.sentimentSummary) return '';
-  let html = mdInline(esc(s.sentimentSummary));
-  if (!/<a /.test(html) && s.sentimentSources && s.sentimentSources.length){
-    html = `<a href="${esc(s.sentimentSources[0].url)}" target="_blank" rel="noopener">${html}</a>`;
-  }
-  return html;
+  return s.sentimentSummary ? mdInline(esc(s.sentimentSummary)) : '';
 }
 function sentimentBlockHtml(s){
   // Status alone is enough to show something — don't require a summary too,
@@ -782,9 +780,17 @@ function sentimentBlockHtml(s){
   const summaryHtml = sentimentSummaryHtml(s) || 'No summary yet.';
   const badge = s.sentimentChanged ? `<span class="sent-badge">Changed this week</span>` : '';
   if (meta.cls === 'danger' || meta.cls === 'mixed'){
+    const metaParts = [];
+    if (s.sentimentLastChecked) metaParts.push('Checked ' + new Date(s.sentimentLastChecked).toLocaleDateString(undefined,{month:'short',day:'numeric'}));
+    if (s.sentimentSources && s.sentimentSources.length){
+      const n = s.sentimentSources.length + (s.sentimentSources.length === 1 ? ' source' : ' sources');
+      metaParts.push(`<a href="${esc(s.sentimentSources[0].url)}" target="_blank" rel="noopener">${n}</a>`);
+    }
+    const metaLine = metaParts.length ? `<div class="sent-meta">${metaParts.join(' · ')}</div>` : '';
     return `<div class="sent"><div class="sent-card ${meta.cls}">
       <div class="sent-hd"><span class="sent-label">Community Sentiment${s.sentimentStatus ? ' · ' + esc(s.sentimentStatus) : ''}</span>${badge}</div>
       <div class="sent-text">${summaryHtml}</div>
+      ${metaLine}
     </div></div>`;
   }
   return `<div class="sent"><div class="sent-quiet"><span class="dot" style="background:${meta.dot}"></span><span class="sent-text">${summaryHtml}</span></div></div>`;
