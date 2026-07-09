@@ -240,24 +240,41 @@
   .docs{margin-top:20px;border-top:1.5px solid var(--line);padding-top:15px}
   .docs h3{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:11px}
 
-  /* ── community sentiment block ── */
+  /* ── community sentiment block (collapsible; all five statuses share the
+     same expand/collapse interaction, only visual weight scales by severity) ── */
   .sent{margin-top:20px}
+  .sent-card,.sent-quiet{cursor:pointer}
+  .sent-card:focus-visible,.sent-quiet:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(36,29,90,.16);border-radius:8px}
   .sent-card{position:relative;padding:13px 15px 13px 19px;border:1.5px solid var(--line);border-radius:12px;overflow:hidden}
   .sent-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px}
   .sent-card.danger{background:rgba(178,59,59,.07);border-color:rgba(178,59,59,.28)}
   .sent-card.danger:before{background:#B23B3B}
   .sent-card.mixed{background:#FBEFD6;border-color:#EBD9AE}
   .sent-card.mixed:before{background:var(--gold)}
-  .sent-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+  .sent-hd{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .sent-hd-left{display:flex;align-items:center;gap:8px;min-width:0}
   .sent-label{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
   .sent-card.danger .sent-label{color:#B23B3B}
   .sent-card.mixed .sent-label{color:#7A5905}
   .sent-badge{font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:#B23B3B;color:#fff;white-space:nowrap}
   .sent-card.mixed .sent-badge{background:var(--gold);color:#4A3705}
+  .sent-chev{flex:none;font-size:9px;color:var(--muted);opacity:.7;transition:transform .18s ease;margin-left:6px}
+  .sent-quiet .sent-chev{color:var(--dim)}
+  .expanded .sent-chev{transform:rotate(180deg)}
+  .sent-teaser{margin-top:6px;font-size:12.5px;line-height:1.5;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .expanded .sent-teaser{display:none}
+  .sent-full{display:none}
+  .expanded .sent-full{display:block;margin-top:6px}
   .sent-text{font-size:12.5px;line-height:1.55;color:var(--ink2)}
   .sent-text a{color:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px}
-  .sent-quiet{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--muted);line-height:1.5}
+  .sent-meta{margin-top:8px;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .sent-meta a{color:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px}
+  .sent-quiet{font-size:12.5px;color:var(--muted);line-height:1.5}
+  .sent-quiet .sent-row{display:flex;align-items:flex-start;gap:8px}
   .sent-quiet .dot{width:8px;height:8px;border-radius:50%;flex:none;margin-top:4px}
+  .sent-quiet .sent-teaser{flex:1;min-width:0;margin-top:0;color:var(--muted)}
+  .sent-quiet .sent-full{margin-left:16px}
+  .sent-quiet .sent-full .sent-text{color:var(--muted)}
   .dlrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
   .dl{font-size:11.5px;font-weight:600;padding:8px 12px;border-radius:9px;border:1.5px solid var(--line);display:inline-flex;align-items:center;gap:7px;text-decoration:none}
   .dl.off{color:var(--dim);background:var(--panel2);cursor:not-allowed}
@@ -763,31 +780,56 @@ function mdToHtml(md){
   return out;
 }
 // Sentiment summary text may embed a [cited fact](url) markdown link (same
-// syntax mdInline already handles for State of Play notes). If a site has
-// sources but the summary text doesn't cite one inline, wrap the whole
-// sentence in the primary source link instead of listing URLs separately.
+// syntax mdInline already handles for State of Play notes) — that's the only
+// way a specific phrase gets hyperlinked. Plain prose renders as plain text;
+// we don't auto-wrap the whole paragraph in a link to the first source, since
+// that reads as one giant underlined block rather than an inline citation.
 function sentimentSummaryHtml(s){
-  if (!s.sentimentSummary) return '';
-  let html = mdInline(esc(s.sentimentSummary));
-  if (!/<a /.test(html) && s.sentimentSources && s.sentimentSources.length){
-    html = `<a href="${esc(s.sentimentSources[0].url)}" target="_blank" rel="noopener">${html}</a>`;
-  }
-  return html;
+  return s.sentimentSummary ? mdInline(esc(s.sentimentSummary)) : '';
+}
+// One-line preview for the collapsed state. Strips markdown-link syntax
+// (rather than leaving raw "[label](url)" visible) since the teaser is
+// plain text, not rendered through mdInline.
+function sentimentTeaser(raw, max){
+  const plain = String(raw || '').replace(/\[([^\]]+)\]\(https?:\/\/[^\s)]+\)/g, '$1').replace(/\s+/g, ' ').trim();
+  if (!plain) return 'No summary yet.';
+  return plain.length > max ? plain.slice(0, max).trimEnd() + '…' : plain;
+}
+// Every severity shares the same collapsed-teaser / expand-to-read-more
+// interaction; only card background, accent, and badge scale with severity.
+function toggleSent(el, ev){
+  if (ev && ev.target.closest('a')) return; // let inline citation/source links work without toggling
+  const open = el.classList.toggle('expanded');
+  el.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 function sentimentBlockHtml(s){
   // Status alone is enough to show something — don't require a summary too,
   // or a record with a status set but no summary yet renders nothing.
   if (!s.sentimentStatus && !s.sentimentSummary) return '';
   const meta = sentimentMeta(s.sentimentStatus);
-  const summaryHtml = sentimentSummaryHtml(s) || 'No summary yet.';
+  const fullHtml = sentimentSummaryHtml(s) || 'No summary yet.';
+  const teaser = esc(sentimentTeaser(s.sentimentSummary, 100));
   const badge = s.sentimentChanged ? `<span class="sent-badge">Changed this week</span>` : '';
+  const toggleAttrs = `role="button" tabindex="0" aria-expanded="false" onclick="toggleSent(this,event)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSent(this,event)}"`;
+  const chev = `<span class="sent-chev">▾</span>`;
   if (meta.cls === 'danger' || meta.cls === 'mixed'){
-    return `<div class="sent"><div class="sent-card ${meta.cls}">
-      <div class="sent-hd"><span class="sent-label">Community Sentiment${s.sentimentStatus ? ' · ' + esc(s.sentimentStatus) : ''}</span>${badge}</div>
-      <div class="sent-text">${summaryHtml}</div>
+    const metaParts = [];
+    if (s.sentimentLastChecked) metaParts.push('Checked ' + new Date(s.sentimentLastChecked).toLocaleDateString(undefined,{month:'short',day:'numeric'}));
+    if (s.sentimentSources && s.sentimentSources.length){
+      const n = s.sentimentSources.length + (s.sentimentSources.length === 1 ? ' source' : ' sources');
+      metaParts.push(`<a href="${esc(s.sentimentSources[0].url)}" target="_blank" rel="noopener">${n}</a>`);
+    }
+    const metaLine = metaParts.length ? `<div class="sent-meta">${metaParts.join(' · ')}</div>` : '';
+    return `<div class="sent"><div class="sent-card ${meta.cls}" ${toggleAttrs}>
+      <div class="sent-hd"><span class="sent-hd-left"><span class="sent-label">Community Sentiment${s.sentimentStatus ? ' · ' + esc(s.sentimentStatus) : ''}</span>${badge}</span>${chev}</div>
+      <div class="sent-teaser">${teaser}</div>
+      <div class="sent-full"><div class="sent-text">${fullHtml}</div>${metaLine}</div>
     </div></div>`;
   }
-  return `<div class="sent"><div class="sent-quiet"><span class="dot" style="background:${meta.dot}"></span><span class="sent-text">${summaryHtml}</span></div></div>`;
+  return `<div class="sent"><div class="sent-quiet" ${toggleAttrs}>
+    <div class="sent-row"><span class="dot" style="background:${meta.dot}"></span><span class="sent-teaser">${teaser}</span>${chev}</div>
+    <div class="sent-full"><span class="sent-text">${fullHtml}</span></div>
+  </div></div>`;
 }
 function renderSnap(s){
   const el = document.getElementById('detail');
