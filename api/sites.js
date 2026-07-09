@@ -37,7 +37,7 @@ const F = {
   sentimentStatus:  "Sentiment Status",   // single select: Opposed/Restricted/Mixed/Supportive/Unknown
   sentimentSummary: "Sentiment Summary",  // rich text; may embed a [cited fact](url) markdown link
   sentimentSources: "Sentiment Sources",  // rich text; one or more [label](url) citations
-  sentimentChanged: "Sentiment Changed",  // checkbox: sentiment shifted this week
+  sentimentChanged: "Sentiment Changed This Week",  // checkbox: sentiment shifted this week
 };
 
 // NOTE: we intentionally do NOT pass fields[] to Airtable. Airtable 422s on
