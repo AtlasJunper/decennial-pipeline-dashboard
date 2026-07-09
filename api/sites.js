@@ -34,14 +34,11 @@ const F = {
   capital:    "Capital Exposed",  // currency/number, $ at risk (deposits, collateral)
   lastTouch:  "Last Updated",     // "Last modified time" field type
   // ── Community sentiment fields ───────────────────────────────────────────
-  // NOTE: several of these Airtable column names carry a trailing space in the
-  // base itself (confirmed via the table schema) — keep them exact, since
-  // Airtable's REST API keys `fields` by the literal column name.
-  sentimentStatus:      "Sentiment Status",              // single select: Opposed/Restricted/Mixed/Supportive/Unknown (options also have a trailing space)
-  sentimentSummary:     "Sentiment Summary ",             // plain text
-  sentimentSources:     "Sentiment Sources ",             // plain text; one bare URL per line, optionally "url (label)"
-  sentimentChanged:     "Sentiment Changed This Week ",   // checkbox: sentiment shifted this week
-  sentimentLastChecked: "Sentiment Last Checked ",        // date
+  sentimentStatus:      "Sentiment Status",              // single select: Opposed/Restricted/Mixed/Supportive/Unknown
+  sentimentSummary:     "Sentiment Summary",              // plain text
+  sentimentSources:     "Sentiment Sources",              // plain text; one bare URL per line, optionally "url (label)"
+  sentimentChanged:     "Sentiment Changed This Week",     // checkbox: sentiment shifted this week
+  sentimentLastChecked: "Sentiment Last Checked",          // date
 };
 
 // NOTE: we intentionally do NOT pass fields[] to Airtable. Airtable 422s on
@@ -142,9 +139,7 @@ function normalize(rec) {
     capital: numOrNull(f[F.capital]),
     lastTouch: f[F.lastTouch] || null,
     // optional community-sentiment fields (null until the columns exist in Airtable)
-    // .trim() on the status: the single-select options themselves carry a
-    // trailing space in Airtable ("Opposed ", "Mixed ", ...).
-    sentimentStatus: (sel(f[F.sentimentStatus]) || "").trim() || null,
+    sentimentStatus: sel(f[F.sentimentStatus]) || null,
     sentimentSummary: (f[F.sentimentSummary] || "").replace(/\r\n/g, "\n").trim() || null,
     sentimentSources: sourceLinks(f[F.sentimentSources]),
     sentimentChanged: !!f[F.sentimentChanged],

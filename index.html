@@ -410,7 +410,7 @@ const SENTIMENT = {
   supportive: { cls:'quiet',  dot:'#0F6E56' },
   unknown:    { cls:'quiet',  dot:'#A79BBC' },
 };
-const sentimentMeta = status => SENTIMENT[String(status || 'unknown').trim().toLowerCase()] || SENTIMENT.unknown;
+const sentimentMeta = status => SENTIMENT[String(status || 'unknown').toLowerCase()] || SENTIMENT.unknown;
 
 /* ── STATE ──────────────────────────────────────────────────────────────── */
 const S = { filter:'all', level:'us', zoomedState:null, selectedId:null, view:'map', sat:false,
