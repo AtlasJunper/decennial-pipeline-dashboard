@@ -767,6 +767,7 @@ function mdToHtml(md){
 // sources but the summary text doesn't cite one inline, wrap the whole
 // sentence in the primary source link instead of listing URLs separately.
 function sentimentSummaryHtml(s){
+  if (!s.sentimentSummary) return '';
   let html = mdInline(esc(s.sentimentSummary));
   if (!/<a /.test(html) && s.sentimentSources && s.sentimentSources.length){
     html = `<a href="${esc(s.sentimentSources[0].url)}" target="_blank" rel="noopener">${html}</a>`;
@@ -774,9 +775,11 @@ function sentimentSummaryHtml(s){
   return html;
 }
 function sentimentBlockHtml(s){
-  if (!s.sentimentSummary) return '';
+  // Status alone is enough to show something — don't require a summary too,
+  // or a record with a status set but no summary yet renders nothing.
+  if (!s.sentimentStatus && !s.sentimentSummary) return '';
   const meta = sentimentMeta(s.sentimentStatus);
-  const summaryHtml = sentimentSummaryHtml(s);
+  const summaryHtml = sentimentSummaryHtml(s) || 'No summary yet.';
   const badge = s.sentimentChanged ? `<span class="sent-badge">Changed this week</span>` : '';
   if (meta.cls === 'danger' || meta.cls === 'mixed'){
     return `<div class="sent"><div class="sent-card ${meta.cls}">
