@@ -240,26 +240,34 @@
   .docs{margin-top:20px;border-top:1.5px solid var(--line);padding-top:15px}
   .docs h3{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:11px}
 
-  /* ── community sentiment block (collapsible; all five statuses share the
-     same expand/collapse interaction, only visual weight scales by severity) ── */
+  /* ── community sentiment block: one card skeleton for all five statuses
+     (header row + left accent + one-line teaser + click-to-expand), only
+     the color scales with severity ── */
   .sent{margin-top:20px}
-  .sent-card,.sent-quiet{cursor:pointer}
-  .sent-card:focus-visible,.sent-quiet:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(36,29,90,.16);border-radius:8px}
-  .sent-card{position:relative;padding:13px 15px 13px 19px;border:1.5px solid var(--line);border-radius:12px;overflow:hidden}
+  .sent-card{cursor:pointer;position:relative;padding:13px 15px 13px 19px;border:1.5px solid var(--line);border-radius:12px;overflow:hidden}
+  .sent-card:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(36,29,90,.16)}
   .sent-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px}
   .sent-card.danger{background:rgba(178,59,59,.07);border-color:rgba(178,59,59,.28)}
   .sent-card.danger:before{background:#B23B3B}
+  .sent-card.danger .sent-label{color:#B23B3B}
+  .sent-card.danger .sent-badge{background:#B23B3B;color:#fff}
   .sent-card.mixed{background:#FBEFD6;border-color:#EBD9AE}
   .sent-card.mixed:before{background:var(--gold)}
+  .sent-card.mixed .sent-label{color:#7A5905}
+  .sent-card.mixed .sent-badge{background:var(--gold);color:#4A3705}
+  .sent-card.good{background:#E1F5EE;border-color:#C6E3D5}
+  .sent-card.good:before{background:#0F6E56}
+  .sent-card.good .sent-label{color:#0F6E56}
+  .sent-card.good .sent-badge{background:#0F6E56;color:#fff}
+  .sent-card.neutral{background:var(--panel2);border-color:var(--line)}
+  .sent-card.neutral:before{background:var(--dim)}
+  .sent-card.neutral .sent-label{color:var(--muted)}
+  .sent-card.neutral .sent-badge{background:var(--dim);color:#fff}
   .sent-hd{display:flex;align-items:center;justify-content:space-between;gap:10px}
   .sent-hd-left{display:flex;align-items:center;gap:8px;min-width:0}
   .sent-label{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
-  .sent-card.danger .sent-label{color:#B23B3B}
-  .sent-card.mixed .sent-label{color:#7A5905}
-  .sent-badge{font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:#B23B3B;color:#fff;white-space:nowrap}
-  .sent-card.mixed .sent-badge{background:var(--gold);color:#4A3705}
+  .sent-badge{font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;white-space:nowrap}
   .sent-chev{flex:none;font-size:9px;color:var(--muted);opacity:.7;transition:transform .18s ease;margin-left:6px}
-  .sent-quiet .sent-chev{color:var(--dim)}
   .expanded .sent-chev{transform:rotate(180deg)}
   .sent-teaser{margin-top:6px;font-size:12.5px;line-height:1.5;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .expanded .sent-teaser{display:none}
@@ -269,12 +277,6 @@
   .sent-text a{color:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px}
   .sent-meta{margin-top:8px;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
   .sent-meta a{color:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px}
-  .sent-quiet{font-size:12.5px;color:var(--muted);line-height:1.5}
-  .sent-quiet .sent-row{display:flex;align-items:flex-start;gap:8px}
-  .sent-quiet .dot{width:8px;height:8px;border-radius:50%;flex:none;margin-top:4px}
-  .sent-quiet .sent-teaser{flex:1;min-width:0;margin-top:0;color:var(--muted)}
-  .sent-quiet .sent-full{margin-left:16px}
-  .sent-quiet .sent-full .sent-text{color:var(--muted)}
   .dlrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
   .dl{font-size:11.5px;font-weight:600;padding:8px 12px;border-radius:9px;border:1.5px solid var(--line);display:inline-flex;align-items:center;gap:7px;text-decoration:none}
   .dl.off{color:var(--dim);background:var(--panel2);cursor:not-allowed}
@@ -415,15 +417,17 @@ const BUCKETS = [
 ];
 const bucketMeta = id => BUCKETS.find(b => b.id === id) || { color:'#6B6280', cls:'preq' };
 // Community sentiment: same "meta lookup by id, class drives color" pattern as
-// bucketMeta above, reusing tokens already on the page (danger red from the
-// Attention strip's overdue-gate styling, gold from --gold, dim/green already
-// used elsewhere) rather than inventing a new palette.
+// bucketMeta above. Every status renders the identical card skeleton (see
+// sentimentBlockHtml) — only the class, and therefore the color, differs,
+// reusing tokens already on the page (danger red from the Attention strip's
+// overdue-gate styling, gold from --gold, the existing positive green,
+// and the neutral panel/dim tokens) rather than inventing a new palette.
 const SENTIMENT = {
-  opposed:    { cls:'danger', dot:'#B23B3B' },
-  restricted: { cls:'danger', dot:'#B23B3B' },
-  mixed:      { cls:'mixed',  dot:'#B8920C' },
-  supportive: { cls:'quiet',  dot:'#0F6E56' },
-  unknown:    { cls:'quiet',  dot:'#A79BBC' },
+  opposed:    { cls:'danger'  },
+  restricted: { cls:'danger'  },
+  mixed:      { cls:'mixed'   },
+  supportive: { cls:'good'    },
+  unknown:    { cls:'neutral' },
 };
 const sentimentMeta = status => SENTIMENT[String(status || 'unknown').toLowerCase()] || SENTIMENT.unknown;
 
@@ -802,6 +806,10 @@ function toggleSent(el, ev){
   const open = el.classList.toggle('expanded');
   el.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
+// One card skeleton for every status — header row (label + optional "changed"
+// badge + chevron), left accent bar, one-line teaser, click-to-expand reveals
+// the full summary plus the "Checked · N sources" line. Only meta.cls (and
+// therefore the color) varies by severity; the structure never does.
 function sentimentBlockHtml(s){
   // Status alone is enough to show something — don't require a summary too,
   // or a record with a status set but no summary yet renders nothing.
@@ -812,23 +820,17 @@ function sentimentBlockHtml(s){
   const badge = s.sentimentChanged ? `<span class="sent-badge">Changed this week</span>` : '';
   const toggleAttrs = `role="button" tabindex="0" aria-expanded="false" onclick="toggleSent(this,event)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSent(this,event)}"`;
   const chev = `<span class="sent-chev">▾</span>`;
-  if (meta.cls === 'danger' || meta.cls === 'mixed'){
-    const metaParts = [];
-    if (s.sentimentLastChecked) metaParts.push('Checked ' + new Date(s.sentimentLastChecked).toLocaleDateString(undefined,{month:'short',day:'numeric'}));
-    if (s.sentimentSources && s.sentimentSources.length){
-      const n = s.sentimentSources.length + (s.sentimentSources.length === 1 ? ' source' : ' sources');
-      metaParts.push(`<a href="${esc(s.sentimentSources[0].url)}" target="_blank" rel="noopener">${n}</a>`);
-    }
-    const metaLine = metaParts.length ? `<div class="sent-meta">${metaParts.join(' · ')}</div>` : '';
-    return `<div class="sent"><div class="sent-card ${meta.cls}" ${toggleAttrs}>
-      <div class="sent-hd"><span class="sent-hd-left"><span class="sent-label">Community Sentiment${s.sentimentStatus ? ' · ' + esc(s.sentimentStatus) : ''}</span>${badge}</span>${chev}</div>
-      <div class="sent-teaser">${teaser}</div>
-      <div class="sent-full"><div class="sent-text">${fullHtml}</div>${metaLine}</div>
-    </div></div>`;
+  const metaParts = [];
+  if (s.sentimentLastChecked) metaParts.push('Checked ' + new Date(s.sentimentLastChecked).toLocaleDateString(undefined,{month:'short',day:'numeric'}));
+  if (s.sentimentSources && s.sentimentSources.length){
+    const n = s.sentimentSources.length + (s.sentimentSources.length === 1 ? ' source' : ' sources');
+    metaParts.push(`<a href="${esc(s.sentimentSources[0].url)}" target="_blank" rel="noopener">${n}</a>`);
   }
-  return `<div class="sent"><div class="sent-quiet" ${toggleAttrs}>
-    <div class="sent-row"><span class="dot" style="background:${meta.dot}"></span><span class="sent-teaser">${teaser}</span>${chev}</div>
-    <div class="sent-full"><span class="sent-text">${fullHtml}</span></div>
+  const metaLine = metaParts.length ? `<div class="sent-meta">${metaParts.join(' · ')}</div>` : '';
+  return `<div class="sent"><div class="sent-card ${meta.cls}" ${toggleAttrs}>
+    <div class="sent-hd"><span class="sent-hd-left"><span class="sent-label">Community/Political Signal${s.sentimentStatus ? ' · ' + esc(s.sentimentStatus) : ''}</span>${badge}</span>${chev}</div>
+    <div class="sent-teaser">${teaser}</div>
+    <div class="sent-full"><div class="sent-text">${fullHtml}</div>${metaLine}</div>
   </div></div>`;
 }
 function renderSnap(s){
