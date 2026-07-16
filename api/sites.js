@@ -39,6 +39,28 @@ const F = {
   sentimentSources:     "Sentiment Sources",              // plain text; one bare URL per line, optionally "url (label)"
   sentimentChanged:     "Sentiment Changed This Week",     // checkbox: sentiment shifted this week
   sentimentLastChecked: "Sentiment Last Checked",          // date
+  // ── New This Week (binding legal action confirmed this week) ────────────
+  // Distinct from sentimentChanged above: that flag means the Status
+  // classification shifted; this one means a specific binding action
+  // (ordinance/permit/moratorium) was confirmed, independent of whether
+  // Status moved. A site can have one without the other.
+  actionThisWeek:       "Sentiment Action This Week",       // checkbox
+  actionDetail:         "Sentiment Action Detail",           // long text: what happened + optional [label](url)
+};
+
+// Comp Projects: third-party project outcomes near our sites, linked back to
+// Active via the reciprocal link field. Table id is hardcoded (like the F
+// map above) since it's a fixed schema addition, not an env-configurable value.
+const COMP_TABLE_ID = "tblnpuDGqLnWMrGsM";
+const CF = {
+  name:       "Project Name",
+  jurisdiction: "Jurisdiction",
+  outcome:    "Outcome",
+  outcomeDate:"Outcome Date",
+  mw:         "MW Size",
+  sourceUrl:  "Source URL",
+  notes:      "Notes",
+  relatedSites: "Related Pipeline Site(s)",  // multipleRecordLinks -> array of Active record ids
 };
 
 // NOTE: we intentionally do NOT pass fields[] to Airtable. Airtable 422s on
@@ -144,6 +166,27 @@ function normalize(rec) {
     sentimentSources: sourceLinks(f[F.sentimentSources]),
     sentimentChanged: !!f[F.sentimentChanged],
     sentimentLastChecked: f[F.sentimentLastChecked] || null,
+    // null detail with the flag off is the common case; the card only
+    // renders this block when actionThisWeek is true AND detail is non-empty
+    actionThisWeek: !!f[F.actionThisWeek],
+    actionDetail: (f[F.actionDetail] || "").replace(/\r\n/g, "\n").trim() || null,
+    comps: [], // populated in handler() after both tables are fetched
+  };
+}
+
+function normalizeComp(rec) {
+  const f = rec.fields || {};
+  const link = mdLink(f[CF.sourceUrl]);
+  return {
+    id: rec.id,
+    name: oneLine(f[CF.name] || ""),
+    jurisdiction: f[CF.jurisdiction] || null,
+    outcome: sel(f[CF.outcome]) || null,
+    outcomeDate: f[CF.outcomeDate] || null,
+    mw: numOrNull(f[CF.mw]),
+    sourceUrl: link ? link.url : (typeof f[CF.sourceUrl] === "string" ? f[CF.sourceUrl] : null),
+    notes: f[CF.notes] || null,
+    relatedSiteIds: Array.isArray(f[CF.relatedSites]) ? f[CF.relatedSites] : [],
   };
 }
 
@@ -166,23 +209,49 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Missing Airtable environment variables" });
     }
 
-    let records = [], offset = null, pages = 0;
-    do {
-      const url = new URL(`https://api.airtable.com/v0/${baseId}/${tableId}`);
-      url.searchParams.set("pageSize", "100");
-      if (offset) url.searchParams.set("offset", offset);
-      const response = await fetchPage(url, token);
-      if (!response.ok) {
-        // Don't proxy Airtable's raw error body to the browser — it can include base/table ids.
-        console.error("Airtable error", response.status, await response.text());
-        return res.status(502).json({ error: `Upstream error (${response.status})` });
-      }
-      const data = await response.json();
-      records = records.concat(data.records || []);
-      offset = data.offset || null;
-    } while (offset && ++pages < 30); // hard cap: 3,000 records; a runaway offset can't loop forever
+    async function fetchAll(tid) {
+      let records = [], offset = null, pages = 0;
+      do {
+        const url = new URL(`https://api.airtable.com/v0/${baseId}/${tid}`);
+        url.searchParams.set("pageSize", "100");
+        if (offset) url.searchParams.set("offset", offset);
+        const response = await fetchPage(url, token);
+        if (!response.ok) {
+          console.error("Airtable error", tid, response.status, await response.text());
+          throw new Error(`Upstream error (${response.status})`);
+        }
+        const data = await response.json();
+        records = records.concat(data.records || []);
+        offset = data.offset || null;
+      } while (offset && ++pages < 30); // hard cap: 3,000 records; a runaway offset can't loop forever
+      return records;
+    }
 
-    const sites = records.map(normalize).filter(s => s.name);
+    // Comp Projects fetched alongside Active, not in series — a failure here
+    // shouldn't take down the whole dashboard, so it degrades to [] rather
+    // than 502ing the request (Active data is the load-bearing half).
+    const [activeRecords, compRecords] = await Promise.all([
+      fetchAll(tableId),
+      fetchAll(COMP_TABLE_ID).catch(err => { console.error("Comp Projects fetch failed", err); return []; }),
+    ]);
+
+    const sites = activeRecords.map(normalize).filter(s => s.name);
+    const comps = compRecords.map(normalizeComp);
+
+    // Group comps onto each site by the reciprocal link, most recent first.
+    const bySite = new Map();
+    for (const c of comps) {
+      for (const sid of c.relatedSiteIds) {
+        if (!bySite.has(sid)) bySite.set(sid, []);
+        bySite.get(sid).push(c);
+      }
+    }
+    for (const s of sites) {
+      const list = (bySite.get(s.id) || []).slice();
+      list.sort((a, b) => new Date(b.outcomeDate || 0) - new Date(a.outcomeDate || 0));
+      s.comps = list;
+    }
+
     res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
     return res.status(200).json({ fetchedAt: new Date().toISOString(), sites });
   } catch (err) {

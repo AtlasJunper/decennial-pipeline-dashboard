@@ -277,6 +277,11 @@
   .sent-text a{color:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px}
   .sent-meta{margin-top:8px;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
   .sent-meta a{color:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px}
+  .sent-badge-action{font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;white-space:nowrap;background:#B23B3B;color:#fff}
+  .sent-row{margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,.08)}
+  .sent-row-hd{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.75}
+  .sent-row-body{margin-top:3px;font-size:12.5px;line-height:1.5}
+  .sent-comps{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}
   .dlrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
   .dl{font-size:11.5px;font-weight:600;padding:8px 12px;border-radius:9px;border:1.5px solid var(--line);display:inline-flex;align-items:center;gap:7px;text-decoration:none}
   .dl.off{color:var(--dim);background:var(--panel2);cursor:not-allowed}
@@ -810,6 +815,24 @@ function toggleSent(el, ev){
 // badge + chevron), left accent bar, one-line teaser, click-to-expand reveals
 // the full summary plus the "Checked · N sources" line. Only meta.cls (and
 // therefore the color) varies by severity; the structure never does.
+// New This Week detail: only rendered when the flag is set AND detail text
+// exists — a checked flag with no detail (workflow ran but didn't fill the
+// note yet) stays silent rather than showing an empty row.
+function actionRowHtml(s){
+  if (!s.actionThisWeek || !s.actionDetail) return '';
+  return `<div class="sent-row"><div class="sent-row-hd">Action this week</div><div class="sent-row-body">${mdInline(esc(s.actionDetail))}</div></div>`;
+}
+// Comps: one summary line (count + most recent), not a full list — keeps the
+// card compact. s.comps is already sorted most-recent-first by the API.
+function compsRowHtml(s){
+  if (!s.comps || !s.comps.length) return '';
+  const top = s.comps[0];
+  const bits = [top.outcome, top.jurisdiction].filter(Boolean).join(', ');
+  const dateStr = top.outcomeDate ? new Date(top.outcomeDate).toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
+  const recent = [bits, dateStr].filter(Boolean).join(' — ');
+  const count = s.comps.length + (s.comps.length === 1 ? ' comp logged' : ' comps logged');
+  return `<div class="sent-row sent-comps"><span class="sent-row-hd" style="border:none;padding:0;margin:0">Nearby comps</span><span>${esc(count)}${recent ? ' · most recent: ' + esc(recent) : ''}</span></div>`;
+}
 function sentimentBlockHtml(s){
   // Status alone is enough to show something — don't require a summary too,
   // or a record with a status set but no summary yet renders nothing.
@@ -818,6 +841,7 @@ function sentimentBlockHtml(s){
   const fullHtml = sentimentSummaryHtml(s) || 'No summary yet.';
   const teaser = esc(sentimentTeaser(s.sentimentSummary, 100));
   const badge = s.sentimentChanged ? `<span class="sent-badge">Changed this week</span>` : '';
+  const actionBadge = s.actionThisWeek && s.actionDetail ? `<span class="sent-badge-action">New this week</span>` : '';
   const toggleAttrs = `role="button" tabindex="0" aria-expanded="false" onclick="toggleSent(this,event)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSent(this,event)}"`;
   const chev = `<span class="sent-chev">▾</span>`;
   const metaParts = [];
@@ -828,9 +852,9 @@ function sentimentBlockHtml(s){
   }
   const metaLine = metaParts.length ? `<div class="sent-meta">${metaParts.join(' · ')}</div>` : '';
   return `<div class="sent"><div class="sent-card ${meta.cls}" ${toggleAttrs}>
-    <div class="sent-hd"><span class="sent-hd-left"><span class="sent-label">Community/Political Signal${s.sentimentStatus ? ' · ' + esc(s.sentimentStatus) : ''}</span>${badge}</span>${chev}</div>
+    <div class="sent-hd"><span class="sent-hd-left"><span class="sent-label">Community/Political Signal${s.sentimentStatus ? ' · ' + esc(s.sentimentStatus) : ''}</span>${badge}${actionBadge}</span>${chev}</div>
     <div class="sent-teaser">${teaser}</div>
-    <div class="sent-full"><div class="sent-text">${fullHtml}</div>${metaLine}</div>
+    <div class="sent-full"><div class="sent-text">${fullHtml}</div>${actionRowHtml(s)}${compsRowHtml(s)}${metaLine}</div>
   </div></div>`;
 }
 function renderSnap(s){
