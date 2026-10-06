@@ -246,7 +246,7 @@ export default async function handler(req, res) {
     // Active table, so the community/political sentiment email keeps running
     // over them. Hiding is a dashboard-read concern only.
     const sites = activeRecords.map(normalize)
-      .filter(s => s.name && s.stage !== HIDDEN_STAGE);
+      .filter(s => s.name && s.stage !== HIDDEN_STAGE && s.stage !== "Hold");
     const comps = compRecords.map(normalizeComp);
 
     // Group comps onto each site by the reciprocal link, most recent first.
