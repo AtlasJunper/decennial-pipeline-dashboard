@@ -275,6 +275,9 @@
   .expanded .sent-full{display:block;margin-top:6px}
   .sent-text{font-size:12.5px;line-height:1.55;color:var(--ink2)}
   .sent-text a{color:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px}
+  .sent-rest,.sent-text.full .sent-more,.sent-text.full .sent-ellipsis{display:none}
+  .sent-text.full .sent-rest{display:inline}
+  .sent-more{display:inline-block;margin-left:4px;font-size:11.5px}
   .sent-meta{margin-top:8px;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
   .sent-meta a{color:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px}
   .sent-badge-action{font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;white-space:nowrap;background:#B23B3B;color:#fff}
@@ -793,8 +796,42 @@ function mdToHtml(md){
 // way a specific phrase gets hyperlinked. Plain prose renders as plain text;
 // we don't auto-wrap the whole paragraph in a link to the first source, since
 // that reads as one giant underlined block rather than an inline citation.
+// Backstop for workflow output that runs long: the expanded card shows roughly
+// the first SENT_CAP characters and tucks the remainder behind "Show full
+// analysis". The cut prefers a sentence boundary (at least SENT_MIN chars in),
+// else the next word boundary after the cap. It never splits a [label](url)
+// link and skips boundaries after common abbreviations ("Wis. Stats.").
+const SENT_CAP = 400, SENT_MIN = 200;
+const SENT_ABBR = /\b(?:Wis|Stats?|Gov|Dr|Mr|Mrs|Ms|St|Co|Inc|Corp|No|Sec|Sen|Rep|Pres|Dept|Ave|Rd|vs)$/;
+function sentimentSplit(raw){
+  const text = String(raw || '').trim();
+  if (text.length <= SENT_CAP) return { head: text, rest: '' };
+  const links = [];
+  text.replace(/\[[^\]]+\]\([^)\s]+\)/g, (m, i) => { links.push([i, i + m.length]); return m; });
+  const inLink = i => links.some(([a, b]) => i > a && i < b);
+  let cut = -1, m;
+  const re = /[.!?](?=\s+[A-Z])/g;
+  while ((m = re.exec(text)) && m.index + 1 <= SENT_CAP) {
+    if (inLink(m.index) || SENT_ABBR.test(text.slice(0, m.index))) continue;
+    cut = m.index + 1;
+  }
+  if (cut < SENT_MIN) {
+    cut = text.indexOf(' ', SENT_CAP);
+    while (cut !== -1 && inLink(cut)) cut = text.indexOf(' ', cut + 1);
+    if (cut === -1) return { head: text, rest: '' };
+  }
+  return { head: text.slice(0, cut).trim(), rest: text.slice(cut).trim() };
+}
 function sentimentSummaryHtml(s){
-  return s.sentimentSummary ? mdInline(esc(s.sentimentSummary)) : '';
+  if (!s.sentimentSummary) return '';
+  const { head, rest } = sentimentSplit(s.sentimentSummary);
+  const headHtml = mdInline(esc(head));
+  if (!rest) return headHtml;
+  return `${headHtml}<span class="sent-ellipsis">…</span><span class="sent-rest"> ${mdInline(esc(rest))}</span> <a href="#" class="sent-more" onclick="showFullSent(this,event)" onkeydown="event.stopPropagation()">Show full analysis</a>`;
+}
+function showFullSent(a, ev){
+  ev.preventDefault(); ev.stopPropagation();
+  a.closest('.sent-text').classList.add('full');
 }
 // One-line preview for the collapsed state. Strips markdown-link syntax
 // (rather than leaving raw "[label](url)" visible) since the teaser is
