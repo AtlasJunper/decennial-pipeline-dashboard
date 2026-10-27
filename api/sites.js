@@ -50,11 +50,13 @@ const F = {
 };
 
 // Allowlist: only sites in these Stage options reach the dashboard (see handler).
-// Names must match the Airtable single-select options exactly, numeric prefix
-// included. Any other stage (Priority, 4. Hold, 5. DC Conversion, blank, or a
-// newly added option) is excluded by default. Excluded sites stay in the Active
-// table so the sentiment email still runs over them.
-const VISIBLE_STAGES = new Set(["1. New", "2. Active", "3. 3Gigs"]);
+// Compared by option name with the leading sort number ("3. ") stripped, so
+// renumbering stages in Airtable doesn't break it; renaming one does. Any other
+// stage (Hold, DC Conversion, blank, or a newly added option) is excluded by
+// default. Excluded sites stay in the Active table so the sentiment email still
+// runs over them.
+const VISIBLE_STAGES = new Set(["New", "Active", "Priority", "3Gigs"]);
+const stageKey = s => (s == null ? null : String(s).replace(/^\s*\d+\.\s*/, "").trim());
 
 // Comp Projects: third-party project outcomes near our sites, linked back to
 // Active via the reciprocal link field. Table id is hardcoded (like the F
@@ -249,7 +251,7 @@ export default async function handler(req, res) {
     // table, so the community/political sentiment email keeps running over it.
     // Filtering is a dashboard-read concern only.
     const sites = activeRecords.map(normalize)
-      .filter(s => s.name && VISIBLE_STAGES.has(s.stage));
+      .filter(s => s.name && VISIBLE_STAGES.has(stageKey(s.stage)));
     const comps = compRecords.map(normalizeComp);
 
     // Group comps onto each site by the reciprocal link, most recent first.
