@@ -11,7 +11,7 @@ const F = {
   itMW:    "Total IT Capacity",
   acres:   "Acres",
   type:    "Project Type",
-  stage:   "Stage",                 // single select; "DC Conversion" sites are hidden from the dashboard
+  stage:   "Stage",                 // single select; only VISIBLE_STAGES reach the dashboard
   status:  "Status",
   bucket:  "Capacity Bucket",
   lead:    "Project Lead",
@@ -49,9 +49,12 @@ const F = {
   actionDetail:         "Sentiment Action Detail",           // long text: what happened + optional [label](url)
 };
 
-// Sites in this Stage are excluded from the dashboard payload (see handler).
-// They stay in the Active table so the sentiment email still runs over them.
-const HIDDEN_STAGE = "DC Conversion";
+// Allowlist: only sites in these Stage options reach the dashboard (see handler).
+// Names must match the Airtable single-select options exactly, numeric prefix
+// included. Any other stage (Priority, 4. Hold, 5. DC Conversion, blank, or a
+// newly added option) is excluded by default. Excluded sites stay in the Active
+// table so the sentiment email still runs over them.
+const VISIBLE_STAGES = new Set(["1. New", "2. Active", "3. 3Gigs"]);
 
 // Comp Projects: third-party project outcomes near our sites, linked back to
 // Active via the reciprocal link field. Table id is hardcoded (like the F
@@ -136,7 +139,7 @@ function normalize(rec) {
     id: rec.id,                          // Airtable record id — the primary key everywhere client-side
     name: oneLine(f[F.name]),          // Project Name is multilineText in the base
     typ: sel(f[F.type]),
-    stage: sel(f[F.stage]) || null,      // used to hide "DC Conversion" sites from the dashboard (see handler filter)
+    stage: sel(f[F.stage]) || null,      // gates dashboard visibility (see VISIBLE_STAGES / handler filter)
     status: sel(f[F.status]) || "Pre-qual",
     address: f[F.address] || null,
     cityState: cityName && stateAbbr ? `${cityName}, ${stateAbbr}` : cityName,
@@ -241,12 +244,12 @@ export default async function handler(req, res) {
       fetchAll(COMP_TABLE_ID).catch(err => { console.error("Comp Projects fetch failed", err); return []; }),
     ]);
 
-    // "DC Conversion" stage sites are kept out of the dashboard entirely (map,
-    // KPIs, grid, snapshot all read this endpoint) but remain untouched in the
-    // Active table, so the community/political sentiment email keeps running
-    // over them. Hiding is a dashboard-read concern only.
+    // Only VISIBLE_STAGES sites reach the dashboard (map, KPIs, grid, snapshot
+    // all read this endpoint). Everything else remains untouched in the Active
+    // table, so the community/political sentiment email keeps running over it.
+    // Filtering is a dashboard-read concern only.
     const sites = activeRecords.map(normalize)
-      .filter(s => s.name && s.stage !== HIDDEN_STAGE && s.stage !== "Hold");
+      .filter(s => s.name && VISIBLE_STAGES.has(s.stage));
     const comps = compRecords.map(normalizeComp);
 
     // Group comps onto each site by the reciprocal link, most recent first.
